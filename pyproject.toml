@@ -1,0 +1,9 @@
+[project]
+name = "ayon-local-config"
+version = "0.1.0"
+description = "Local Config addon for AYON.\n"
+readme = "README.md"
+requires-python = ">=3.8"
+dependencies = [
+    "qtpy>=2.0.0",
+]
