@@ -43,7 +43,7 @@ class LocalConfigAddon(AYONAddon, ITrayAddon):
 
     def initialize(self, settings):
         """Initialization of addon."""
-        log.debug("Initializing Local Config addon")
+        # log.debug("Initializing Local Config addon")
 
         self.settings = settings.get("local_config", {})
         self._menu_builder = LocalConfigMenuBuilder(self)
@@ -91,18 +91,24 @@ class LocalConfigAddon(AYONAddon, ITrayAddon):
     def get_launcher_action_paths(self):
         """Get paths to launcher action plugins"""
         # Get the addon root directory (where this file is located)
-        addon_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        addon_root = os.path.dirname(os.path.abspath(__file__))
         return [os.path.join(addon_root, "plugins", "actions")]
 
     def show_config_window(self):
         try:
-            if self._config_window is None or not self._config_window.isVisible():
+            # Check if window exists and is valid (not closed)
+            if self._config_window is None or not hasattr(self._config_window, 'isVisible'):
                 from ayon_local_config.ui.config_window import LocalConfigWindow
+                # Create window with complete UI
                 self._config_window = LocalConfigWindow(self.settings)
+                log.info("Created new Local Config window")
+            else:
+                log.info("Reusing existing Local Config window")
+            
+            # Show window
             self._config_window.show()
-            self._config_window.raise_()
-            self._config_window.activateWindow()
             log.info("Local Config window shown")
+            
         except Exception as e:
             log.error(f"Failed to show Local Config window: {e}")
             log.error(traceback.format_exc())

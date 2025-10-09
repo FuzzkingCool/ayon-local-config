@@ -1,0 +1,121 @@
+/* AYON Local Config - Minimal vanilla stylesheet */
+
+* {
+    font-size: 9pt;
+    font-family: "Noto Sans";
+    outline: none;
+}
+
+QWidget {
+    color: {color:font};
+    background: {color:bg};
+}
+
+QLabel {
+    background: transparent;
+}
+
+/* Input fields - prevent cutoff */
+QLineEdit, QComboBox {
+    padding: 6px 8px;
+    min-height: 24px;
+    max-height: 28px;
+    font-size: 9pt;
+}
+
+/* SpinBox - completely vanilla (no styling at all) */
+
+/* Buttons - compact sizing */
+QPushButton {
+    padding: 4px 12px;
+    min-height: 22px;
+    max-height: 26px;
+    font-size: 9pt;
+}
+
+/* Tab widget */
+QTabWidget::pane {
+    border-top-style: none;
+}
+
+QTabBar::tab {
+    border-top: 1px solid {color:border};
+    border-left: 1px solid {color:border};
+    border-right: 1px solid {color:border};
+    padding: 6px 10px;
+    background: {color:tab-widget:bg};
+    color: {color:tab-widget:color};
+    font-size: 9pt;
+}
+
+QTabBar::tab:selected {
+    border-left-color: {color:tab-widget:bg-selected};
+    border-right-color: {color:tab-widget:bg-selected};
+    border-top-color: {color:border-focus};
+    background: {color:tab-widget:bg-selected};
+    color: {color:tab-widget:color-selected};
+}
+
+QTabBar::tab:!selected:hover {
+    background: {color:tab-widget:bg-hover};
+    color: {color:tab-widget:color-hover};
+}
+
+/* SwitchWidget styling */
+SwitchWidget {
+    background: transparent;
+    border: none;
+}
+
+/* Footer styling - compact */
+QWidget[objectName="footer_widget"] {
+    background: {color:bg-splitter};
+    border-top: 1px solid {color:border};
+    padding: 6px 8px;
+    min-height: 32px;
+    max-height: 36px;
+}
+
+QWidget[objectName="footer_widget"] QPushButton {
+    padding: 4px 12px;
+    min-height: 22px;
+    max-height: 26px;
+    font-size: 9pt;
+    margin-left: 4px;
+}
+
+/* Status bar styling - compact */
+QLabel[objectName="status_bar"] {
+    padding: 4px 8px;
+    font-size: 9pt;
+    min-height: 18px;
+    max-height: 22px;
+}
+
+/* Divider styling - simple and clear */
+DividerSettingWidget {
+    background: transparent;
+    margin: 8px 0px;
+    padding: 4px 0px;
+}
+
+DividerSettingWidget QFrame {
+    background-color: {color:border};
+    border: none;
+    min-width: 2px;
+    min-height: 2px;
+}
+
+/* Divider labels - compact but readable */
+DividerSettingWidget QLabel {
+    color: {color:font};
+    font-weight: 600;
+    font-size: 10px;
+    margin: 2px 0px;
+    padding: 2px 0px;
+    background: transparent;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    min-height: 16px;
+    max-height: 20px;
+}

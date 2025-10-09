@@ -117,8 +117,18 @@ def find_action_by_name(action_name: str) -> LauncherAction:
 def execute_action_by_name(action_name: str, config_data: Dict[str, Any]) -> bool:
     """Execute an action by name with current config data"""
     try:
-        action_class = find_action_by_name(action_name)
-        if action_class:
+        # Direct action mapping for known actions
+        action_mapping = {
+            "CleanLogsAction": "ayon_local_config.plugins.actions.action_clean_logs:CleanLogsAction",
+            "OpenProjectFolderAction": "ayon_local_config.plugins.actions.action_open_project_folder:OpenProjectFolderAction",
+        }
+        
+        if action_name in action_mapping:
+            # Import and execute the action directly
+            module_path, class_name = action_mapping[action_name].split(":")
+            module = __import__(module_path, fromlist=[class_name])
+            action_class = getattr(module, class_name)
+            
             # Create instance and execute
             action_instance = action_class()
             
@@ -140,8 +150,32 @@ def execute_action_by_name(action_name: str, config_data: Dict[str, Any]) -> boo
             log.info(f"Successfully executed action: {action_name}")
             return True
         else:
-            log.warning(f"Action not found: {action_name}")
-            return False
+            # Fallback to discovery system
+            action_class = find_action_by_name(action_name)
+            if action_class:
+                # Create instance and execute
+                action_instance = action_class()
+                
+                # Use execute_with_config if available, otherwise fall back to execute
+                if hasattr(action_instance, 'execute_with_config'):
+                    action_instance.execute_with_config(config_data)
+                elif hasattr(action_instance, 'execute'):
+                    # Legacy support - try to pass config_data if the method accepts it
+                    import inspect
+                    sig = inspect.signature(action_instance.execute)
+                    if len(sig.parameters) > 0:
+                        action_instance.execute(config_data)
+                    else:
+                        action_instance.execute()
+                else:
+                    log.error(f"Action {action_name} has no execute method")
+                    return False
+                    
+                log.info(f"Successfully executed action: {action_name}")
+                return True
+            else:
+                log.warning(f"Action not found: {action_name}")
+                return False
             
     except Exception as e:
         log.error(f"Error executing action {action_name}: {e}")

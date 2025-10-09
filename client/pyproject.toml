@@ -1,6 +1,6 @@
 [project]
 name = "ayon-local-config"
-version = "0.1.0"
+version = "0.1.5"
 description = "Local Config addon for AYON.\n"
 readme = "README.md"
 requires-python = ">=3.8"
