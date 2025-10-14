@@ -25,39 +25,37 @@ class OpenFolderAction(LocalConfigCompatibleAction):
     # Canonical AYON families approach
     families = ["local_config"]
     
-    def execute_with_config(self, config_data):
+    def execute_with_config(self, config_data, action_data=""):
         """Execute the action with current config data"""
         try:
-            # Get the path from the default value or triggered setting value
+            # Debug: Log the parameters
+            log.debug(f"Action data: {action_data}")
+            log.debug(f"Config data keys: {list(config_data.keys())}")
+            
+            # Get the path from the action_data or config_data
             folder_path = None
             
-            # First, check if we have a specific triggered setting value
-            if '_triggered_setting_value' in config_data:
-                triggered_value = config_data['_triggered_setting_value']
-                if triggered_value:
-                    # Expand environment variables in the path
-                    expanded_path = os.path.expandvars(triggered_value)
-                    if os.path.exists(expanded_path):
-                        folder_path = expanded_path
-                        log.debug(f"Using triggered setting value for folder path: {folder_path}")
+            # First, check if we have action_data  
+            if action_data:
+                log.debug(f"Using action_data for folder path: {action_data}")
+                # Expand environment variables and user home directory
+                expanded_path = os.path.expanduser(os.path.expandvars(action_data))
+                log.debug(f"Expanded path: {expanded_path}")
+                log.debug(f"Path exists: {os.path.exists(expanded_path)}")
+                if os.path.exists(expanded_path):
+                    folder_path = expanded_path
+                    log.debug(f"Using action_data for folder path: {folder_path}")
+                else:
+                    log.debug(f"Expanded path does not exist: {expanded_path}")
+                    # Try to create the directory if it doesn't exist
+                    try:
+                        os.makedirs(expanded_path, exist_ok=True)
+                        if os.path.exists(expanded_path):
+                            folder_path = expanded_path
+                            log.debug(f"Created directory and using path: {folder_path}")
+                    except Exception as e:
+                        log.debug(f"Failed to create directory {expanded_path}: {e}")
             
-            # Fallback: Search through all groups for a path-type setting
-            if not folder_path:
-                for group_data in config_data.values():
-                    if isinstance(group_data, dict):
-                        for setting_key, setting_value in group_data.items():
-                            # Check if this looks like a folder path
-                            if setting_value:
-                                # Expand environment variables in the path
-                                expanded_path = os.path.expandvars(setting_value)
-                                if os.path.exists(expanded_path):
-                                    # Check if it's a directory or if the key suggests it's a folder
-                                    if os.path.isdir(expanded_path) or "folder" in setting_key.lower() or "path" in setting_key.lower():
-                                        folder_path = expanded_path
-                                        log.debug(f"Found folder path in config: {folder_path}")
-                                        break
-                        if folder_path:
-                            break
             
             if not folder_path:
                 QtWidgets.QMessageBox.warning(
@@ -70,13 +68,7 @@ class OpenFolderAction(LocalConfigCompatibleAction):
             
             # Open the folder in the system file explorer
             self._open_folder(folder_path)
-            
-            QtWidgets.QMessageBox.information(
-                None,
-                "Folder Opened",
-                f"Opened folder:\n{folder_path}"
-            )
-            
+         
         except Exception as e:
             log.error(f"Error in open folder action: {e}")
             QtWidgets.QMessageBox.critical(
@@ -89,7 +81,7 @@ class OpenFolderAction(LocalConfigCompatibleAction):
         """Open folder in system file explorer"""
         system = platform.system()
         
-        if system == "Windows":
+        if system == "Windows": # Windows
             os.startfile(path)
         elif system == "Darwin":  # macOS
             subprocess.Popen(["open", path])

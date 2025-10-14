@@ -196,7 +196,7 @@ def execute_action_by_name(action_name: str, config_data: Dict[str, Any], action
             # Create instance and execute
             action_instance = action_class()
             
-            # Use execute_with_config if available, otherwise fall back to execute
+            # All actions must implement execute_with_config
             if hasattr(action_instance, 'execute_with_config'):
                 # Check if the method accepts action_data parameter
                 import inspect
@@ -205,18 +205,8 @@ def execute_action_by_name(action_name: str, config_data: Dict[str, Any], action
                     action_instance.execute_with_config(config_data, action_data)
                 else:
                     action_instance.execute_with_config(config_data)
-            elif hasattr(action_instance, 'execute'):
-                # Legacy support - try to pass config_data and action_data if the method accepts them
-                import inspect
-                sig = inspect.signature(action_instance.execute)
-                if 'action_data' in sig.parameters:
-                    action_instance.execute(config_data, action_data)
-                elif len(sig.parameters) > 0:
-                    action_instance.execute(config_data)
-                else:
-                    action_instance.execute()
             else:
-                log.error(f"Action {action_name} has no execute method")
+                log.error(f"Action {action_name} must implement execute_with_config method")
                 return False
                 
             log.info(f"Successfully executed action: {action_name}")
