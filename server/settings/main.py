@@ -137,7 +137,8 @@ class LocalConfigSettingModel(BaseSettingsModel):
     action_data: str = SettingsField(
         "", 
         title="Action Data",
-        description="Data/parameters to pass to the action. Can be JSON string, plain text, or file paths. Used by button actions to provide context or parameters.",
+        description="Data/parameters to pass to the action. Can be JSON string, plain text, or file paths. Used by button actions to provide context or parameters. "
+        "Use the '${ENV_VAR}' syntax to reference environment variables cross-platform.",
         conditional_visibility={"type": "button"}
     )
     
