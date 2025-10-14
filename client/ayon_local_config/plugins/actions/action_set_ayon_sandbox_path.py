@@ -271,12 +271,22 @@ class SetAyonSandboxPathAction(LocalConfigCompatibleAction):
                         "Files were not copied from the previous location.",
                     )
             else:
-                QtWidgets.QMessageBox.information(
-                    None,
-                    "Sandbox Path Set",
-                    f"AYON Local Sandbox Path set to:\n{new_sandbox}\n\n"
-                    "This will be the new location for AYON logs, workfiles, and settings.",
-                )
+                # Current sandbox doesn't exist or is None
+                if current_sandbox and not os.path.exists(current_sandbox):
+                    log.warning(f"Current sandbox path does not exist: {current_sandbox}")
+                    QtWidgets.QMessageBox.information(
+                        None,
+                        "Sandbox Path Set",
+                        f"AYON Local Sandbox Path set to:\n{new_sandbox}\n\n"
+                        f"Previous sandbox path ({current_sandbox}) did not exist, so no files were copied.",
+                    )
+                else:
+                    QtWidgets.QMessageBox.information(
+                        None,
+                        "Sandbox Path Set",
+                        f"AYON Local Sandbox Path set to:\n{new_sandbox}\n\n"
+                        "This will be the new location for AYON logs, workfiles, and settings.",
+                    )
 
             # Update environment variable
             self._update_environment_variable(new_sandbox)
