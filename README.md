@@ -36,7 +36,7 @@ A simple AYON addon that allows users to manage local configuration settings thr
 
 Configure setting groups in the AYON server settings under "Local Config":
 
-1. **Groups**: Create configuration groups with titles and descriptions
+1. **Tab Groups**: Create tab groups with names and descriptions
 2. **Settings**: Add individual settings to each group with:
    - Type (string, boolean, enum, button)
    - Label and tooltip
