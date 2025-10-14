@@ -40,10 +40,22 @@ class LocalConfigStorage:
         """Ensure the config directory exists"""
         try:
             if not os.path.exists(self.config_dir):
-                os.makedirs(self.config_dir)
+                os.makedirs(self.config_dir, exist_ok=True)
                 log.debug(f"Created config directory: {self.config_dir}")
         except Exception as e:
             log.error(f"Failed to create config directory: {e}")
+            # Try to create parent directories if they don't exist
+            try:
+                parent_dir = os.path.dirname(self.config_dir)
+                if not os.path.exists(parent_dir):
+                    os.makedirs(parent_dir, exist_ok=True)
+                    log.debug(f"Created parent directory: {parent_dir}")
+                # Try to create config directory again
+                os.makedirs(self.config_dir, exist_ok=True)
+                log.debug(f"Created config directory after creating parent: {self.config_dir}")
+            except Exception as e2:
+                log.error(f"Failed to create config directory even after creating parent: {e2}")
+                raise
 
     def load_config(self) -> Dict[str, Any]:
         """Load configuration from JSON file"""
@@ -89,6 +101,9 @@ class LocalConfigStorage:
     def save_config(self, config: Dict[str, Any]) -> bool:
         """Save configuration to JSON file"""
         try:
+            # Ensure directory exists before saving
+            self._ensure_config_dir()
+            
             log.debug(f"Saving config to: {self.config_file}")
             log.debug(f"Config data: {json.dumps(config, indent=2)}")
             
