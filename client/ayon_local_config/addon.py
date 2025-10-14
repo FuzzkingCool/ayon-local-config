@@ -3,25 +3,17 @@ import os
 import traceback
 
 from ayon_core.addon import AYONAddon, ITrayAddon
+
 try:
     from qtpy import QtCore, QtGui, QtWidgets
 except ImportError:
     from qtpy5 import QtCore, QtGui, QtWidgets
 
+
 from ayon_local_config.logger import log
 from ayon_local_config.version import __version__
-
-
-class LocalConfigMenuBuilder:
-    def __init__(self, addon):
-        self.addon = addon
-
-    def update_menu_contents(self, menu):
-        menu.clear()
-        # Add "User Config" action
-        action = QtWidgets.QAction("User Config", menu)
-        action.triggered.connect(self.addon.show_config_window)
-        menu.addAction(action)
+from ayon_local_config.environment_registry import initialize_environment_registry, restore_environment_variables
+from ayon_local_config.storage import LocalConfigStorage
 
 
 class LocalConfigAddon(AYONAddon, ITrayAddon):
@@ -37,18 +29,31 @@ class LocalConfigAddon(AYONAddon, ITrayAddon):
     version = __version__
 
     _config_window = None
-    _menu_builder = None
     _tray_icon = None
-    _menu = None
+    _action = None
+    _environment_registry = None
 
     def initialize(self, settings):
         """Initialization of addon."""
         # log.debug("Initializing Local Config addon")
 
         self.settings = settings.get("local_config", {})
-        self._menu_builder = LocalConfigMenuBuilder(self)
         self.tray_icon = None
-        self._menu = None
+        self._action = None
+        
+        # Check if addon is enabled
+        if not self.settings.get("enabled", False):
+            log.info("Local Config addon is disabled")
+            return
+        
+        # Initialize environment variable registry
+        try:
+            storage = LocalConfigStorage()
+            self._environment_registry = initialize_environment_registry(storage)
+            log.debug("Environment variable registry initialized")
+        except Exception as e:
+            log.error(f"Failed to initialize environment variable registry: {e}")
+            self._environment_registry = None
 
     def tray_init(self):
         # Called when tray is initialized
@@ -56,10 +61,18 @@ class LocalConfigAddon(AYONAddon, ITrayAddon):
             self.tray_icon = QtWidgets.QSystemTrayIcon(self.get_icon())
             self.tray_icon.setToolTip(self.label)
             self.tray_icon.show()
+        
+        # Restore environment variables when tray initializes
+        if self._environment_registry:
+            try:
+                self._environment_registry.restore_environment_variables()
+                log.info("Restored environment variables on tray initialization")
+            except Exception as e:
+                log.error(f"Failed to restore environment variables: {e}")
 
     def tray_start(self):
         # Called when tray is started
-        self._update_menu()
+        pass
 
     def tray_exit(self):
         # Called when tray is exiting
@@ -69,20 +82,20 @@ class LocalConfigAddon(AYONAddon, ITrayAddon):
         if self._config_window:
             self._config_window.close()
             self._config_window = None
+        self._action = None
 
     def tray_menu(self, tray_menu):
-        menu = QtWidgets.QMenu(self.label, tray_menu)
-        menu.setProperty("submenu", "off")
-        menu.setProperty("parentTrayMenu", tray_menu)
-        tray_menu.addMenu(menu)
-        self._menu = menu
-        self._menu_builder.update_menu_contents(menu)
-        # Connect aboutToShow for dynamic updates
-        menu.aboutToShow.connect(lambda: self._menu_builder.update_menu_contents(menu))
+        # Check if addon is enabled
+        if not self.settings.get("enabled", False):
+            return
+            
+        # Get the menu item name from settings
+        menu_item_name = self.settings.get("menu_item_name", "User Config")
 
-    def _update_menu(self):
-        if self._menu:
-            self._menu_builder.update_menu_contents(self._menu)
+        # Create a single action instead of a submenu
+        self._action = QtWidgets.QAction(menu_item_name, tray_menu)
+        self._action.triggered.connect(self.show_config_window)
+        tray_menu.addAction(self._action)
 
     def get_icon(self):
         # Use a simple gear icon or similar for config
@@ -93,22 +106,29 @@ class LocalConfigAddon(AYONAddon, ITrayAddon):
         # Get the addon root directory (where this file is located)
         addon_root = os.path.dirname(os.path.abspath(__file__))
         return [os.path.join(addon_root, "plugins", "actions")]
+    
+    def get_environment_registry(self):
+        """Get the environment variable registry instance"""
+        return self._environment_registry
 
     def show_config_window(self):
         try:
             # Check if window exists and is valid (not closed)
-            if self._config_window is None or not hasattr(self._config_window, 'isVisible'):
+            if self._config_window is None or not hasattr(
+                self._config_window, "isVisible"
+            ):
                 from ayon_local_config.ui.config_window import LocalConfigWindow
+
                 # Create window with complete UI
                 self._config_window = LocalConfigWindow(self.settings)
                 log.info("Created new Local Config window")
             else:
                 log.info("Reusing existing Local Config window")
-            
+
             # Show window
             self._config_window.show()
             log.info("Local Config window shown")
-            
+
         except Exception as e:
             log.error(f"Failed to show Local Config window: {e}")
             log.error(traceback.format_exc())

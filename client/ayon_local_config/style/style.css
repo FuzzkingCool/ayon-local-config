@@ -23,7 +23,62 @@ QLineEdit, QComboBox {
     font-size: 9pt;
 }
 
-/* SpinBox - completely vanilla (no styling at all) */
+/* SpinBox - vertical button layout */
+QSpinBox {
+    padding: 6px 12px 6px 8px;
+    min-height: 24px;
+    max-height: 28px;
+    font-size: 9pt;
+}
+
+/* Stack spinbox buttons vertically */
+QSpinBox {
+    padding-right: 20px;
+}
+
+QSpinBox::up-button {
+    subcontrol-origin: border;
+    subcontrol-position: top center;
+    width: 16px;
+    height: 12px;
+    border: 1px solid {color:border};
+    background: {color:input:bg};
+}
+
+QSpinBox::up-button:hover {
+    background: {color:input:bg-hover};
+}
+
+QSpinBox::up-arrow {
+    image: none;
+    border-left: 4px solid transparent;
+    border-right: 4px solid transparent;
+    border-bottom: 4px solid {color:font};
+    width: 0;
+    height: 0;
+}
+
+QSpinBox::down-button {
+    subcontrol-origin: border;
+    subcontrol-position: bottom center;
+    width: 16px;
+    height: 12px;
+    border: 1px solid {color:border};
+    background: {color:input:bg};
+}
+
+QSpinBox::down-button:hover {
+    background: {color:input:bg-hover};
+}
+
+QSpinBox::down-arrow {
+    image: none;
+    border-left: 4px solid transparent;
+    border-right: 4px solid transparent;
+    border-top: 4px solid {color:font};
+    width: 0;
+    height: 0;
+}
 
 /* Buttons - compact sizing */
 QPushButton {
@@ -31,6 +86,29 @@ QPushButton {
     min-height: 22px;
     max-height: 26px;
     font-size: 9pt;
+}
+
+/* Project selector */
+#project_selector {
+    background: {color:tab-widget:bg};
+    border-bottom: 1px solid {color:border};
+}
+
+#project_label {
+    font-weight: bold;
+    color: {color:tab-widget:color};
+}
+
+#project_combo {
+    background: {color:input:bg};
+    border: 1px solid {color:border};
+    border-radius: 3px;
+    padding: 4px 8px;
+    min-width: 150px;
+}
+
+#project_combo:focus {
+    border-color: {color:accent};
 }
 
 /* Tab widget */
@@ -100,22 +178,52 @@ DividerSettingWidget {
 }
 
 DividerSettingWidget QFrame {
-    background-color: {color:border};
+    background-color: #373D48;
     border: none;
     min-width: 2px;
     min-height: 2px;
 }
 
-/* Divider labels - compact but readable */
+/* Divider labels - heading style */
 DividerSettingWidget QLabel {
-    color: {color:font};
+    color: #D3D8DE;
     font-weight: 600;
-    font-size: 10px;
-    margin: 2px 0px;
-    padding: 2px 0px;
+    font-size: 16px;
+    margin: 4px 0px;
+    padding: 4px 0px;
     background: transparent;
     text-transform: uppercase;
     letter-spacing: 0.5px;
-    min-height: 16px;
-    max-height: 20px;
+    min-height: 24px;
+    max-height: 28px;
+}
+
+/* Horizontal divider styling */
+DividerSettingWidget[orientation="horizontal"] {
+    margin: 16px 0px 8px 0px;
+    padding: 8px 0px 4px 0px;
+}
+
+DividerSettingWidget[orientation="horizontal"] QFrame {
+    background-color: #373D48;
+    border: none;
+    min-width: 100%;
+    min-height: 1px;
+    max-height: 1px;
+}
+
+/* Vertical divider styling */
+DividerSettingWidget[orientation="vertical"] {
+    margin: 0px 8px;
+    padding: 0px 4px;
+    min-width: 1px;
+    max-width: 1px;
+}
+
+DividerSettingWidget[orientation="vertical"] QFrame {
+    background-color: #373D48;
+    border: none;
+    min-width: 1px;
+    min-height: 100%;
+    max-width: 1px;
 }

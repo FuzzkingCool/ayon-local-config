@@ -1,12 +1,11 @@
 # -*- coding: utf-8 -*-
 import os
-import inspect
 from typing import List, Dict, Any
 
-from ayon_core.pipeline.actions import discover_launcher_actions
 from ayon_core.pipeline import LauncherAction
 
 from ayon_local_config.logger import log
+from ayon_local_config.environment_registry import get_environment_registry
 
 
 class LocalConfigCompatibleAction(LauncherAction):
@@ -31,6 +30,55 @@ class LocalConfigCompatibleAction(LauncherAction):
         """
         raise NotImplementedError("Local Config actions must implement execute_with_config method")
     
+    def get_environment_registry(self):
+        """Get the environment variable registry for this action"""
+        return get_environment_registry()
+    
+    def register_environment_variable(self, var_name: str, value: str, description: str = ""):
+        """
+        Register an environment variable with the registry.
+        
+        Args:
+            var_name: Name of the environment variable
+            value: Value to set
+            description: Optional description
+        """
+        registry = self.get_environment_registry()
+        if registry:
+            return registry.register_environment_variable(
+                var_name, value, self.__class__.__name__, description
+            )
+        return False
+    
+    def update_environment_variable(self, var_name: str, new_value: str):
+        """
+        Update a registered environment variable.
+        
+        Args:
+            var_name: Name of the environment variable
+            new_value: New value to set
+        """
+        registry = self.get_environment_registry()
+        if registry:
+            return registry.update_environment_variable(
+                var_name, new_value, self.__class__.__name__
+            )
+        return False
+    
+    def unregister_environment_variable(self, var_name: str):
+        """
+        Unregister an environment variable.
+        
+        Args:
+            var_name: Name of the environment variable to unregister
+        """
+        registry = self.get_environment_registry()
+        if registry:
+            return registry.unregister_environment_variable(
+                var_name, self.__class__.__name__
+            )
+        return False
+    
     def is_compatible(self, session):
         """Check if this action is compatible with current session - always true for local config"""
         return True
@@ -41,19 +89,41 @@ class LocalConfigCompatibleAction(LauncherAction):
 
 
 def discover_localconfig_compatible_actions() -> List[LauncherAction]:
-    """Discover all AYON launcher actions that are compatible with Local Config"""
+    """Dynamically discover all local config compatible actions"""
     compatible_actions = []
     
     try:
-        # Use AYON-core's standard launcher action discovery
-        # This will now include our actions since we registered the path
-        all_actions = discover_launcher_actions()
+        log.debug("Starting dynamic local config action discovery...")
         
-        for action_class in all_actions:
-            # Check if action has "local_config" in families (canonical AYON approach)
-            if _is_action_compatible_with_local_config(action_class):
-                compatible_actions.append(action_class)
-                log.debug(f"Found local config compatible action: {action_class.__name__}")
+        # Get the actions directory path
+        import ayon_local_config.plugins.actions
+        actions_dir = os.path.dirname(ayon_local_config.plugins.actions.__file__)
+        
+        # Find all Python files in the actions directory
+        for filename in os.listdir(actions_dir):
+            if filename.startswith('action_') and filename.endswith('.py'):
+                module_name = filename[:-3]  # Remove .py extension
+                
+                try:
+                    # Dynamically import the module
+                    full_module_path = f"ayon_local_config.plugins.actions.{module_name}"
+                    module = __import__(full_module_path, fromlist=['*'])
+                    
+                    # Find all classes in the module that inherit from LocalConfigCompatibleAction
+                    for attr_name in dir(module):
+                        attr = getattr(module, attr_name)
+                        if (isinstance(attr, type) and 
+                            issubclass(attr, LocalConfigCompatibleAction) and 
+                            attr != LocalConfigCompatibleAction):
+                            
+                            if _is_action_compatible_with_local_config(attr):
+                                compatible_actions.append(attr)
+                                log.debug(f"Found local config compatible action: {attr.__name__}")
+                                
+                except Exception as e:
+                    log.warning(f"Failed to import action module {module_name}: {e}")
+        
+        log.debug(f"Discovered {len(compatible_actions)} compatible actions")
                             
     except Exception as e:
         log.warning(f"Error discovering compatible actions: {e}")
@@ -114,32 +184,34 @@ def find_action_by_name(action_name: str) -> LauncherAction:
     return None
 
 
-def execute_action_by_name(action_name: str, config_data: Dict[str, Any]) -> bool:
-    """Execute an action by name with current config data"""
+def execute_action_by_name(action_name: str, config_data: Dict[str, Any], action_data: str = "") -> bool:
+    """Execute an action by name with current config data using dynamic discovery"""
     try:
-        # Direct action mapping for known actions
-        action_mapping = {
-            "CleanLogsAction": "ayon_local_config.plugins.actions.action_clean_logs:CleanLogsAction",
-            "OpenProjectFolderAction": "ayon_local_config.plugins.actions.action_open_project_folder:OpenProjectFolderAction",
-        }
+        log.debug(f"Attempting to execute action: {action_name}")
         
-        if action_name in action_mapping:
-            # Import and execute the action directly
-            module_path, class_name = action_mapping[action_name].split(":")
-            module = __import__(module_path, fromlist=[class_name])
-            action_class = getattr(module, class_name)
-            
+        # Use dynamic discovery system as primary method
+        action_class = find_action_by_name(action_name)
+        if action_class:
+            log.debug(f"Found action class: {action_class.__name__}, with data: {action_data}")
             # Create instance and execute
             action_instance = action_class()
             
             # Use execute_with_config if available, otherwise fall back to execute
             if hasattr(action_instance, 'execute_with_config'):
-                action_instance.execute_with_config(config_data)
+                # Check if the method accepts action_data parameter
+                import inspect
+                sig = inspect.signature(action_instance.execute_with_config)
+                if 'action_data' in sig.parameters:
+                    action_instance.execute_with_config(config_data, action_data)
+                else:
+                    action_instance.execute_with_config(config_data)
             elif hasattr(action_instance, 'execute'):
-                # Legacy support - try to pass config_data if the method accepts it
+                # Legacy support - try to pass config_data and action_data if the method accepts them
                 import inspect
                 sig = inspect.signature(action_instance.execute)
-                if len(sig.parameters) > 0:
+                if 'action_data' in sig.parameters:
+                    action_instance.execute(config_data, action_data)
+                elif len(sig.parameters) > 0:
                     action_instance.execute(config_data)
                 else:
                     action_instance.execute()
@@ -150,32 +222,8 @@ def execute_action_by_name(action_name: str, config_data: Dict[str, Any]) -> boo
             log.info(f"Successfully executed action: {action_name}")
             return True
         else:
-            # Fallback to discovery system
-            action_class = find_action_by_name(action_name)
-            if action_class:
-                # Create instance and execute
-                action_instance = action_class()
-                
-                # Use execute_with_config if available, otherwise fall back to execute
-                if hasattr(action_instance, 'execute_with_config'):
-                    action_instance.execute_with_config(config_data)
-                elif hasattr(action_instance, 'execute'):
-                    # Legacy support - try to pass config_data if the method accepts it
-                    import inspect
-                    sig = inspect.signature(action_instance.execute)
-                    if len(sig.parameters) > 0:
-                        action_instance.execute(config_data)
-                    else:
-                        action_instance.execute()
-                else:
-                    log.error(f"Action {action_name} has no execute method")
-                    return False
-                    
-                log.info(f"Successfully executed action: {action_name}")
-                return True
-            else:
-                log.warning(f"Action not found: {action_name}")
-                return False
+            log.warning(f"Action not found: {action_name}")
+            return False
             
     except Exception as e:
         log.error(f"Error executing action {action_name}: {e}")

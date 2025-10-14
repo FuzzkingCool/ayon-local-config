@@ -26,8 +26,26 @@ class CleanLogsAction(LocalConfigCompatibleAction):
     def execute_with_config(self, config_data):
         """Execute the clean logs action"""
         try:
-            # Get logs directory
-            logs_dir = os.path.join(os.path.expanduser("~"), ".ayon", "logs")
+            # Check if we have a specific triggered setting value (e.g., from a path setting)
+            sandbox_path = None
+            if '_triggered_setting_value' in config_data:
+                triggered_value = config_data['_triggered_setting_value']
+                if triggered_value and os.path.exists(triggered_value):
+                    sandbox_path = triggered_value
+                    log.debug(f"Using triggered setting value for sandbox: {sandbox_path}")
+            
+            # Fallback to AYON_LOCAL_SANDBOX environment variable
+            if not sandbox_path:
+                sandbox_path = os.environ.get('AYON_LOCAL_SANDBOX')
+                if sandbox_path:
+                    log.debug(f"Using AYON_LOCAL_SANDBOX environment variable: {sandbox_path}")
+            
+            # Final fallback to default
+            if not sandbox_path:
+                sandbox_path = os.path.expanduser("~/.ayon")
+                log.debug(f"Using default sandbox path: {sandbox_path}")
+            
+            logs_dir = os.path.join(sandbox_path, "logs")
             
             if not os.path.exists(logs_dir):
                 QtWidgets.QMessageBox.information(

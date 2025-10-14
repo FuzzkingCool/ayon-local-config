@@ -46,10 +46,13 @@
         "bg-view-alternate-disabled": "#2C313A",
         "bg-view-selection": "rgba(92, 173, 214, .4)",
         "bg-view-selection-hover": "rgba(92, 173, 214, .8)",
+        "bg-active": "rgba(92, 173, 214, 0.2)",
+        "bg-highlight": "rgba(255, 198, 113, 0.2)",
 
         "border": "#373D48",
         "border-hover": "rgb(92, 99, 111)",
         "border-focus": "rgb(92, 173, 214)",
+        "border-active": "rgba(92, 173, 214, 0.6)",
 
         "restart-btn-bg": "#458056",
 
@@ -64,6 +67,10 @@
         "font-entity-deprecated": "#666666",
 
         "font-overridden": "#91CDFC",
+        "font-success": "#458056",
+        "font-warning": "#ffc671",
+        "font-error": "#AD2E2E",
+        "font-info": "rgb(63, 98, 121)",
 
         "overlay-messages": {
             "close-btn": "#D3D8DE",

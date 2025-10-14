@@ -84,6 +84,7 @@ def _load_stylesheet():
         stylesheet = style_file.read()
 
     data = _get_colors_raw_data()
+    print(f"DEBUG: Loaded color data keys: {list(data.keys())}")
 
     data_deque = collections.deque()
     for item in data.items():
@@ -98,10 +99,22 @@ def _load_stylesheet():
                 data_deque.append((new_key, sub_value))
             continue
         fill_data[key] = value
+    
+    print(f"DEBUG: Fill data keys: {list(fill_data.keys())[:10]}...")  # Show first 10 keys
+    
+    # Debug: Show some key-value pairs
+    for key, value in list(fill_data.items())[:5]:
+        print(f"DEBUG: Key '{key}' -> Value '{value}'")
 
     for key, value in fill_data.items():
         replacement_key = "{" + key + "}"
-        stylesheet = stylesheet.replace(replacement_key, value)
+        stylesheet = stylesheet.replace(replacement_key, str(value))
+    
+    # Debug: Check if color replacement worked
+    print(f"DEBUG: Color replacement - found {stylesheet.count('{color:')} unreplaced color variables")
+    if stylesheet.count('{color:') > 0:
+        print(f"DEBUG: First unreplaced variable: {stylesheet[stylesheet.find('{color:'):stylesheet.find('{color:')+20]}")
+    
     return stylesheet
 
 
@@ -155,3 +168,10 @@ def load_stylesheet():
         _Cache.stylesheet = _load_stylesheet()
     _load_font()
     return _Cache.stylesheet
+
+
+def clear_stylesheet_cache():
+    """Clear the stylesheet cache to force reload."""
+    _Cache.stylesheet = None
+    _Cache.colors_data = None
+    _Cache.objected_colors = None
