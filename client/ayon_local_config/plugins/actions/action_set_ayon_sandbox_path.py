@@ -2,10 +2,7 @@
 import os
 import shutil
 
-try:
-    from qtpy import QtCore, QtWidgets
-except ImportError:
-    from qtpy5 import QtWidgets
+from qtpy import QtWidgets
 
 from ayon_local_config.logger import log
 from ayon_local_config.plugin import LocalConfigCompatibleAction
@@ -273,7 +270,9 @@ class SetAyonSandboxPathAction(LocalConfigCompatibleAction):
             else:
                 # Current sandbox doesn't exist or is None
                 if current_sandbox and not os.path.exists(current_sandbox):
-                    log.warning(f"Current sandbox path does not exist: {current_sandbox}")
+                    log.warning(
+                        f"Current sandbox path does not exist: {current_sandbox}"
+                    )
                     QtWidgets.QMessageBox.information(
                         None,
                         "Sandbox Path Set",
