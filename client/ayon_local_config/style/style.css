@@ -25,7 +25,7 @@ QLineEdit, QComboBox {
 
 /* SpinBox - vertical button layout */
 QSpinBox {
-    padding: 6px 12px 6px 8px;
+    padding: 6px 16px 6px 12px;
     min-height: 24px;
     max-height: 28px;
     font-size: 9pt;
@@ -33,7 +33,7 @@ QSpinBox {
 
 /* Stack spinbox buttons vertically */
 QSpinBox {
-    padding-right: 20px;
+    padding-right: 24px;
 }
 
 QSpinBox::up-button {
