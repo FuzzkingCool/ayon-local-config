@@ -64,16 +64,14 @@ class SetUnityProjectAction(LocalConfigCompatibleAction):
                 log.info(f"Registered AYON_UNITY_PROJECT_PATH with registry: {unity_project_path}")
 
                 # Register auto-open setting based on toggle (only if project path exists)
-                if auto_open_unity:
-                    self.register_environment_variable(
-                        "AYON_UNITY_AUTO_OPEN_PROJECT",
-                        "true",
-                        "AYON Unity Auto Open Project - automatically set by Local Config addon",
-                    )
-                    log.info("Registered AYON_UNITY_AUTO_OPEN_PROJECT with registry: true")
-                else:
-                    self.unregister_environment_variable("AYON_UNITY_AUTO_OPEN_PROJECT")
-                    log.info("Unregistered AYON_UNITY_AUTO_OPEN_PROJECT from registry")
+                # Always register the environment variable, just with different values
+                auto_open_value = "true" if auto_open_unity else "false"
+                self.register_environment_variable(
+                    "AYON_UNITY_AUTO_OPEN_PROJECT",
+                    auto_open_value,
+                    "AYON Unity Auto Open Project - automatically set by Local Config addon",
+                )
+                log.info(f"Registered AYON_UNITY_AUTO_OPEN_PROJECT with registry: {auto_open_value}")
             else:
                 # No Unity project path set, unregister both variables
                 self.unregister_environment_variable("AYON_UNITY_PROJECT_PATH")
