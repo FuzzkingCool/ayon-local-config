@@ -118,6 +118,9 @@ class SetAyonSandboxPathAction(LocalConfigCompatibleAction):
 
     def execute_with_config(self, config_data):
         """Execute the sandbox path management action"""
+        log.info(
+            f"SetAyonSandboxPathAction.execute_with_config called with config_data keys: {list(config_data.keys())}"
+        )
         try:
             # Get current and new sandbox paths
             current_sandbox = self._get_current_sandbox_path()
@@ -140,11 +143,9 @@ class SetAyonSandboxPathAction(LocalConfigCompatibleAction):
 
             # Check if paths are the same
             if current_sandbox and os.path.samefile(current_sandbox, new_sandbox):
-                QtWidgets.QMessageBox.information(
-                    None,
-                    "Sandbox Path Unchanged",
-                    f"AYON Local Sandbox Path is already set to:\n{new_sandbox}",
-                )
+                log.info(f"AYON Local Sandbox Path is already set to: {new_sandbox}")
+                # Still update the environment variable to ensure it's registered
+                self._update_environment_variable(new_sandbox)
                 return
 
             # Check if current sandbox exists and has files
@@ -163,11 +164,7 @@ class SetAyonSandboxPathAction(LocalConfigCompatibleAction):
 
                     if scanning_dialog.cancelled:
                         scanning_dialog.close()
-                        QtWidgets.QMessageBox.information(
-                            None,
-                            "Operation Cancelled",
-                            "File scanning was cancelled by user.",
-                        )
+                        log.info("File scanning was cancelled by user")
                         return
 
                     if files_to_copy:
@@ -179,11 +176,7 @@ class SetAyonSandboxPathAction(LocalConfigCompatibleAction):
 
                         if scanning_dialog.cancelled:
                             scanning_dialog.close()
-                            QtWidgets.QMessageBox.information(
-                                None,
-                                "Operation Cancelled",
-                                "Size calculation was cancelled by user.",
-                            )
+                            log.info("Size calculation was cancelled by user")
                             return
 
                         # Close scanning dialog
@@ -309,23 +302,13 @@ class SetAyonSandboxPathAction(LocalConfigCompatibleAction):
 
     def _get_new_sandbox_path(self, config_data):
         """Get the new sandbox path from config data"""
-        # First, check if we have a specific triggered setting value
-        if "_triggered_setting_value" in config_data:
-            triggered_value = config_data["_triggered_setting_value"]
-            if triggered_value:
-                log.debug(f"Using triggered setting value: {triggered_value}")
-                return triggered_value
-
-        # Fallback: Look for the AYON Local Sandbox Path setting in config data
-        for group_data in config_data.values():
-            if isinstance(group_data, dict):
-                for setting_key, setting_value in group_data.items():
-                    if "sandbox" in setting_key.lower() and setting_value:
-                        log.debug(f"Found sandbox setting in config: {setting_value}")
-                        return setting_value
-
-        log.debug("No sandbox path found in config data")
-        return None
+        user_settings = config_data.get("user_settings", {})
+        sandbox_path = user_settings.get("ayon_sandbox_folder")
+        if sandbox_path:
+            # Expand user home directory and normalize path
+            sandbox_path = os.path.expanduser(sandbox_path)
+            sandbox_path = os.path.normpath(sandbox_path)
+        return sandbox_path
 
     def _get_sandbox_files(self, sandbox_path, progress_dialog=None):
         """Get list of files in the sandbox directory with progress tracking"""
@@ -459,39 +442,9 @@ class SetAyonSandboxPathAction(LocalConfigCompatibleAction):
 
     def _update_environment_variable(self, new_sandbox_path):
         """Update the AYON_LOCAL_SANDBOX environment variable using the registry"""
-        try:
-            # Use the environment registry for persistent storage
-            success = self.register_environment_variable(
-                "AYON_LOCAL_SANDBOX",
-                new_sandbox_path,
-                "AYON Local Sandbox Path - automatically set by Local Config addon",
-            )
-
-            if success:
-                # Log the change
-                log.info(
-                    f"Registered AYON_LOCAL_SANDBOX with registry: {new_sandbox_path}"
-                )
-
-                QtWidgets.QMessageBox.information(
-                    None,
-                    "Environment Variable Registered",
-                    f"AYON_LOCAL_SANDBOX has been registered and set to:\n{new_sandbox_path}\n\n"
-                    "This environment variable will be automatically restored when the addon loads.",
-                )
-            else:
-                # Fallback to direct environment variable setting
-                os.environ["AYON_LOCAL_SANDBOX"] = new_sandbox_path
-                log.info(f"Set AYON_LOCAL_SANDBOX directly: {new_sandbox_path}")
-
-                QtWidgets.QMessageBox.information(
-                    None,
-                    "Environment Variable Updated",
-                    f"AYON_LOCAL_SANDBOX has been set to:\n{new_sandbox_path}\n\n"
-                    "Note: This change is only for the current session.\n"
-                    "To make it permanent, set AYON_LOCAL_SANDBOX in your shell profile.",
-                )
-
-        except Exception as e:
-            log.error(f"Error updating environment variable: {e}")
-            raise
+        self.register_environment_variable(
+            "AYON_LOCAL_SANDBOX",
+            new_sandbox_path,
+            "AYON Local Sandbox Path - automatically set by Local Config addon",
+        )
+        log.info(f"Registered AYON_LOCAL_SANDBOX with registry: {new_sandbox_path}")
