@@ -127,6 +127,16 @@ class LocalConfigStorage:
         """Set a specific setting value for the current project"""
         log.debug(f"Setting value: project={self.project_name}, group={group_id}, setting={setting_id}, value={value}")
         
+        # Normalize boolean values to lowercase strings for consistency
+        if isinstance(value, bool):
+            value = str(value).lower()
+        elif isinstance(value, str) and value.lower() in ("true", "false", "1", "0", "yes", "no", "on", "off"):
+            # Convert string boolean representations to lowercase
+            if value.lower() in ("true", "1", "yes", "on"):
+                value = "true"
+            else:
+                value = "false"
+        
         config = self.load_config()
         if "projects" not in config:
             config["projects"] = {}
