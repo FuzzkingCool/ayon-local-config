@@ -1,8 +1,6 @@
 # -*- coding: utf-8 -*-
 import os
-import json
 from typing import Dict, Any, List, Optional, Callable
-from pathlib import Path
 
 from ayon_local_config.logger import log
 from ayon_local_config.storage import LocalConfigStorage
@@ -322,7 +320,10 @@ def get_environment_registry() -> EnvironmentVariableRegistry:
     """
     global _global_registry
     if _global_registry is None:
-        _global_registry = EnvironmentVariableRegistry()
+        # If no registry is initialized, create one with default storage
+        from ayon_local_config.storage import LocalConfigStorage
+        storage = LocalConfigStorage()
+        _global_registry = EnvironmentVariableRegistry(storage)
     return _global_registry
 
 

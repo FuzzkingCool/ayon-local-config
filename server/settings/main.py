@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 from typing import List
+
 from ayon_server.settings import BaseSettingsModel, SettingsField
 from pydantic import validator
 
@@ -23,7 +24,7 @@ DEFAULT_VALUES = {
                     "action_data": "",
                     "divider_orientation": "horizontal",
                     "type": "divider",
-                    "label": "AYON Local Sandbox configuration",
+                    "label": "AYON Local Paths Configuration",
                 },
                 {
                     "tooltip": "Choose a location where workfiles, logs, and local AYON configurations will be stored. By default it is in ~/.ayon",
@@ -37,13 +38,26 @@ DEFAULT_VALUES = {
                     "type": "string",
                     "label": "AYON Sandbox folder",
                 },
+            
                 {
-                    "tooltip": "Path to your project directory",
+                    "tooltip": "",
+                    "default_value": "~/Pictures/Renders",
+                    "is_path": True,
+                    "path_type": "folder",
+                    "enum_options": [],
+                    "action_name": "SetRenderPathAction",
+                    "action_data": "",
+                    "divider_orientation": "horizontal",
+                    "type": "string",
+                    "label": "Set Default LocalRender Path",
+                },
+                 {
+                    "tooltip": "Path to your Unity project directory (The root folder of your Unity project, not the Assets folder)",
                     "default_value": "",
                     "is_path": True,
                     "path_type": "folder",
                     "enum_options": [],
-                    "action_name": "",
+                    "action_name": "SetUnityProjectAction",
                     "action_data": "",
                     "divider_orientation": "horizontal",
                     "type": "string",
@@ -55,7 +69,7 @@ DEFAULT_VALUES = {
                     "is_path": False,
                     "path_type": "folder",
                     "enum_options": [],
-                    "action_name": "",
+                    "action_name": "SetUnityProjectAction",
                     "action_data": "",
                     "divider_orientation": "horizontal",
                     "type": "boolean",
@@ -249,14 +263,14 @@ DEFAULT_VALUES = {
                 },
                 {
                     "type": "button",
-                    "label": "Set AYON Sandbox",
+                    "label": "Open AYON Sandbox",
                     "tooltip": "BUTTON WITH ACTION: Shows how buttons trigger actions. 'action_name' executes the action class. Use for workflows, dialogs, and system operations.",
                     "default_value": "",
                     "is_path": False,
                     "path_type": "folder",
                     "enum_options": [],
-                    "action_name": "SetAyonSandboxPathAction",
-                    "action_data": "",
+                    "action_name": "OpenFolderAction",
+                    "action_data": "${AYON_LOCAL_SANDBOX}",
                 },
                 {
                     "type": "divider",
@@ -368,7 +382,7 @@ DEFAULT_VALUES = {
                     "path_type": "folder",
                     "enum_options": [],
                     "action_name": "OpenFolderAction",
-                    "action_data": "AYON_LOCAL_SANDBOX",
+                    "action_data": "${AYON_LOCAL_SANDBOX}",
                 },
                 {
                     "type": "button",
@@ -650,4 +664,3 @@ class LocalConfigSettings(BaseSettingsModel):
         title="Tab Groups",
         description="Configuration groups that appear as tabs in the Local Config window. Each group can contain multiple settings of different types, organized for specific use cases or workflows.",
     )
-

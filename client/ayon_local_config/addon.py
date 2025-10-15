@@ -3,17 +3,14 @@ import os
 import traceback
 
 from ayon_core.addon import AYONAddon, ITrayAddon
+from qtpy import QtGui, QtWidgets
 
-try:
-    from qtpy import QtCore, QtGui, QtWidgets
-except ImportError:
-    from qtpy5 import QtCore, QtGui, QtWidgets
-
-
+from ayon_local_config.environment_registry import (
+    initialize_environment_registry,
+)
 from ayon_local_config.logger import log
-from ayon_local_config.version import __version__
-from ayon_local_config.environment_registry import initialize_environment_registry, restore_environment_variables
 from ayon_local_config.storage import LocalConfigStorage
+from ayon_local_config.version import __version__
 
 
 class LocalConfigAddon(AYONAddon, ITrayAddon):
@@ -40,12 +37,12 @@ class LocalConfigAddon(AYONAddon, ITrayAddon):
         self.settings = settings.get("local_config", {})
         self.tray_icon = None
         self._action = None
-        
+
         # Check if addon is enabled
         if not self.settings.get("enabled", False):
             log.info("Local Config addon is disabled")
             return
-        
+
         # Initialize environment variable registry
         try:
             storage = LocalConfigStorage()
@@ -61,7 +58,7 @@ class LocalConfigAddon(AYONAddon, ITrayAddon):
             self.tray_icon = QtWidgets.QSystemTrayIcon(self.get_icon())
             self.tray_icon.setToolTip(self.label)
             self.tray_icon.show()
-        
+
         # Restore environment variables when tray initializes
         if self._environment_registry:
             try:
@@ -69,6 +66,36 @@ class LocalConfigAddon(AYONAddon, ITrayAddon):
                 log.info("Restored environment variables on tray initialization")
             except Exception as e:
                 log.error(f"Failed to restore environment variables: {e}")
+
+        # Initialize environment variables from settings if not already registered
+        self._initialize_environment_variables_from_settings()
+
+    def _initialize_environment_variables_from_settings(self):
+        """Initialize environment variables from current settings"""
+        try:
+            from ayon_local_config.plugin import execute_action_by_name
+            from ayon_local_config.storage import LocalConfigStorage
+
+            # Get current config data
+            storage = LocalConfigStorage()
+            config_data = storage.get_group_config("user_settings")
+
+            # Execute sandbox path action if sandbox folder is set
+            if "ayon_sandbox_folder" in config_data:
+                log.info("Initializing AYON sandbox environment variable from settings")
+                execute_action_by_name("SetAyonSandboxPathAction", config_data)
+
+            # Execute Unity project action if Unity project path is set and auto-open is enabled
+            if "unity_project_path" in config_data and config_data.get(
+                "auto_open_unity_project", False
+            ):
+                log.info(
+                    "Initializing Unity project environment variable from settings"
+                )
+                execute_action_by_name("SetUnityProjectAction", config_data)
+
+        except Exception as e:
+            log.error(f"Failed to initialize environment variables from settings: {e}")
 
     def tray_start(self):
         # Called when tray is started
@@ -88,7 +115,7 @@ class LocalConfigAddon(AYONAddon, ITrayAddon):
         # Check if addon is enabled
         if not self.settings.get("enabled", False):
             return
-            
+
         # Get the menu item name from settings
         menu_item_name = self.settings.get("menu_item_name", "User Config")
 
@@ -106,7 +133,7 @@ class LocalConfigAddon(AYONAddon, ITrayAddon):
         # Get the addon root directory (where this file is located)
         addon_root = os.path.dirname(os.path.abspath(__file__))
         return [os.path.join(addon_root, "plugins", "actions")]
-    
+
     def get_environment_registry(self):
         """Get the environment variable registry instance"""
         return self._environment_registry
