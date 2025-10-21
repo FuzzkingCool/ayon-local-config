@@ -49,7 +49,7 @@ DEFAULT_VALUES = {
                     "action_data": "",
                     "divider_orientation": "horizontal",
                     "type": "string",
-                    "label": "Set Default LocalRender Path",
+                    "label": "Set Default Local Render Path",
                 },
                  {
                     "tooltip": "Path to your Unity project directory (The root folder of your Unity project, not the Assets folder)",
