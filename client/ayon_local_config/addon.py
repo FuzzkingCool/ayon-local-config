@@ -48,6 +48,14 @@ class LocalConfigAddon(AYONAddon, ITrayAddon):
             storage = LocalConfigStorage()
             self._environment_registry = initialize_environment_registry(storage)
             log.debug("Environment variable registry initialized")
+            
+            # Restore environment variables immediately after initialization
+            if self._environment_registry:
+                try:
+                    self._environment_registry.restore_environment_variables()
+                    log.info("Restored environment variables on addon initialization")
+                except Exception as e:
+                    log.error(f"Failed to restore environment variables: {e}")
         except Exception as e:
             log.error(f"Failed to initialize environment variable registry: {e}")
             self._environment_registry = None
@@ -78,17 +86,20 @@ class LocalConfigAddon(AYONAddon, ITrayAddon):
 
             # Get current config data
             storage = LocalConfigStorage()
-            config_data = storage.get_group_config("user_settings")
+            user_settings = storage.get_group_config("user_settings")
+            
+            # Wrap user_settings in proper config_data structure that actions expect
+            config_data = {
+                "user_settings": user_settings
+            }
 
             # Execute sandbox path action if sandbox folder is set
-            if "ayon_sandbox_folder" in config_data:
+            if "ayon_sandbox_folder" in user_settings:
                 log.info("Initializing AYON sandbox environment variable from settings")
                 execute_action_by_name("SetAyonSandboxPathAction", config_data)
 
-            # Execute Unity project action if Unity project path is set and auto-open is enabled
-            if "unity_project_path" in config_data and config_data.get(
-                "auto_open_unity_project", False
-            ):
+            # Execute Unity project action if Unity project path is set
+            if "unity_project_path" in user_settings:
                 log.info(
                     "Initializing Unity project environment variable from settings"
                 )

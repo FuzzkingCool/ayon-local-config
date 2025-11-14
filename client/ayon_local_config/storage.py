@@ -11,15 +11,6 @@ class LocalConfigStorage:
     """Handles loading and saving of local configuration data"""
 
     def __init__(self, project_name: str = None):
-        # Use AYON_LOCAL_SANDBOX environment variable, fallback to ~/.ayon
-        sandbox_path = os.environ.get("AYON_LOCAL_SANDBOX")
-        if sandbox_path:
-            self.config_dir = os.path.join(sandbox_path, "settings")
-        else:
-            self.config_dir = os.path.join(os.path.expanduser("~"), ".ayon", "settings")
-
-        self.config_file = os.path.join(self.config_dir, "localconfig.json")
-        
         # Get project name with fallback for Local Config addon
         if project_name:
             self.project_name = project_name
@@ -34,7 +25,20 @@ class LocalConfigStorage:
                 log.warning(f"Failed to get current project name: {e}, using 'default'")
                 self.project_name = "default"
         
+        # Initialize config directory (will be updated dynamically)
+        self._update_config_paths()
         self._ensure_config_dir()
+    
+    def _update_config_paths(self):
+        """Update config directory and file paths based on current AYON_LOCAL_SANDBOX"""
+        # Use AYON_LOCAL_SANDBOX environment variable, fallback to ~/.ayon
+        sandbox_path = os.environ.get("AYON_LOCAL_SANDBOX")
+        if sandbox_path:
+            self.config_dir = os.path.join(sandbox_path, "settings")
+        else:
+            self.config_dir = os.path.join(os.path.expanduser("~"), ".ayon", "settings")
+
+        self.config_file = os.path.join(self.config_dir, "localconfig.json")
 
     def _ensure_config_dir(self):
         """Ensure the config directory exists"""
@@ -60,6 +64,9 @@ class LocalConfigStorage:
     def load_config(self) -> Dict[str, Any]:
         """Load configuration from JSON file"""
         try:
+            # Update config paths in case AYON_LOCAL_SANDBOX changed
+            self._update_config_paths()
+            
             if os.path.exists(self.config_file):
                 # Check if file is empty or corrupted
                 if os.path.getsize(self.config_file) == 0:
@@ -101,6 +108,9 @@ class LocalConfigStorage:
     def save_config(self, config: Dict[str, Any]) -> bool:
         """Save configuration to JSON file"""
         try:
+            # Update config paths in case AYON_LOCAL_SANDBOX changed
+            self._update_config_paths()
+            
             # Ensure directory exists before saving
             self._ensure_config_dir()
             
@@ -123,19 +133,31 @@ class LocalConfigStorage:
         project_config = config.get("projects", {}).get(self.project_name, {})
         return project_config.get(group_id, {}).get(setting_id, default_value)
 
-    def set_setting_value(self, group_id: str, setting_id: str, value: Any) -> bool:
-        """Set a specific setting value for the current project"""
-        log.debug(f"Setting value: project={self.project_name}, group={group_id}, setting={setting_id}, value={value}")
+    def set_setting_value(self, group_id: str, setting_id: str, value: Any, setting_type: str = None) -> bool:
+        """Set a specific setting value for the current project
+        
+        Args:
+            group_id: The group identifier
+            setting_id: The setting identifier
+            value: The value to set
+            setting_type: The widget type (boolean, spinbox, string, etc.)
+        """
+        log.debug(f"Setting value: project={self.project_name}, group={group_id}, setting={setting_id}, value={value}, type={setting_type}")
         
         # Normalize boolean values to lowercase strings for consistency
-        if isinstance(value, bool):
+        # Only apply boolean normalization for boolean widget types
+        if setting_type == "boolean":
+            if isinstance(value, bool):
+                value = str(value).lower()
+            elif isinstance(value, str) and value.lower() in ("true", "false", "1", "0", "yes", "no", "on", "off"):
+                # Convert string boolean representations to lowercase
+                if value.lower() in ("true", "1", "yes", "on"):
+                    value = "true"
+                else:
+                    value = "false"
+        elif isinstance(value, bool):
+            # For non-boolean widgets that somehow got a bool value, convert to string
             value = str(value).lower()
-        elif isinstance(value, str) and value.lower() in ("true", "false", "1", "0", "yes", "no", "on", "off"):
-            # Convert string boolean representations to lowercase
-            if value.lower() in ("true", "1", "yes", "on"):
-                value = "true"
-            else:
-                value = "false"
         
         config = self.load_config()
         if "projects" not in config:

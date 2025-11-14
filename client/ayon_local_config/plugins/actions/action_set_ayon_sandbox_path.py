@@ -150,110 +150,117 @@ class SetAyonSandboxPathAction(LocalConfigCompatibleAction):
 
             # Check if current sandbox exists and has files
             if current_sandbox and os.path.exists(current_sandbox):
-                # Show scanning progress dialog
-                scanning_dialog = ScanningProgressDialog(None)
-                scanning_dialog.show()
-                scanning_dialog.set_status("Scanning sandbox directory for files...")
-                QtWidgets.QApplication.processEvents()
+                # Ask user first if they want to migrate files
+                migrate_reply = QtWidgets.QMessageBox.question(
+                    None,
+                    "Migrate Sandbox Files?",
+                    f"Current sandbox location:\n{current_sandbox}\n\n"
+                    f"New sandbox location:\n{new_sandbox}\n\n"
+                    "Do you want to copy files from the current sandbox to the new location?\n\n"
+                    "(Selecting 'No' will just update the path without copying any files)",
+                    QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No,
+                    QtWidgets.QMessageBox.Yes,
+                )
 
-                try:
-                    # Scan for files with progress tracking
-                    files_to_copy = self._get_sandbox_files(
-                        current_sandbox, scanning_dialog
-                    )
+                if migrate_reply == QtWidgets.QMessageBox.Yes:
+                    # Show scanning progress dialog
+                    scanning_dialog = ScanningProgressDialog(None)
+                    scanning_dialog.show()
+                    scanning_dialog.set_status("Scanning sandbox directory for files...")
+                    QtWidgets.QApplication.processEvents()
 
-                    if scanning_dialog.cancelled:
-                        scanning_dialog.close()
-                        log.info("File scanning was cancelled by user")
-                        return
-
-                    if files_to_copy:
-                        # Calculate total size with progress tracking
-                        scanning_dialog.set_status("Calculating total file size...")
-                        total_size_gb = self._calculate_total_size(
-                            files_to_copy, scanning_dialog
+                    try:
+                        # Fast count and size calculation with progress tracking
+                        file_count, total_size_bytes = self._count_and_size_bytes(
+                            current_sandbox, scanning_dialog
                         )
 
                         if scanning_dialog.cancelled:
                             scanning_dialog.close()
-                            log.info("Size calculation was cancelled by user")
+                            log.info("File scanning was cancelled by user")
                             return
 
                         # Close scanning dialog
                         scanning_dialog.close()
 
-                        # Ask user if they want to copy files with detailed information
-                        reply = QtWidgets.QMessageBox.question(
-                            None,
-                            "Copy Sandbox Files?",
-                            f"Found {len(files_to_copy)} files ({total_size_gb:.2f} GB) in current sandbox:\n{current_sandbox}\n\n"
-                            f"Do you want to copy these files to the new sandbox path?\n{new_sandbox}",
-                            QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No,
-                            QtWidgets.QMessageBox.Yes,
-                        )
-                    else:
-                        # Close scanning dialog
-                        scanning_dialog.close()
-
-                        QtWidgets.QMessageBox.information(
-                            None,
-                            "Sandbox Path Updated",
-                            f"AYON Local Sandbox Path updated to:\n{new_sandbox}\n\n"
-                            "No files found in the previous location.",
-                        )
-
-                except Exception as e:
-                    scanning_dialog.close()
-                    log.error(f"Error during file scanning: {e}")
-                    QtWidgets.QMessageBox.critical(
-                        None,
-                        "Scanning Error",
-                        f"Error scanning sandbox directory: {str(e)}",
-                    )
-                    return
-
-                # Handle the copy operation if user confirmed
-                if "reply" in locals() and reply == QtWidgets.QMessageBox.Yes:
-                    copy_success = self._copy_sandbox_files(
-                        current_sandbox, new_sandbox, files_to_copy
-                    )
-
-                    if copy_success:
-                        # Ask if user wants to delete old files
-                        delete_reply = QtWidgets.QMessageBox.question(
-                            None,
-                            "Delete Old Files?",
-                            f"Successfully copied {len(files_to_copy)} files to:\n{new_sandbox}\n\n"
-                            f"Do you want to delete the old sandbox directory?\n{current_sandbox}",
-                            QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No,
-                            QtWidgets.QMessageBox.No,
-                        )
-
-                        if delete_reply == QtWidgets.QMessageBox.Yes:
-                            self._delete_old_sandbox(current_sandbox)
+                        if file_count == 0:
                             QtWidgets.QMessageBox.information(
                                 None,
-                                "Migration Complete",
-                                f"Successfully migrated sandbox:\n"
-                                f"From: {current_sandbox}\n"
-                                f"To: {new_sandbox}\n\n"
-                                f"Old directory has been deleted.",
+                                "Sandbox Path Updated",
+                                f"AYON Local Sandbox Path updated to:\n{new_sandbox}\n\n"
+                                "No files found in the previous location.",
                             )
                         else:
-                            QtWidgets.QMessageBox.information(
+                            total_size_gb = total_size_bytes / (1024 * 1024 * 1024)
+                            
+                            # Confirm copy with detailed information
+                            confirm_reply = QtWidgets.QMessageBox.question(
                                 None,
-                                "Files Copied",
-                                f"Successfully copied {len(files_to_copy)} files to:\n{new_sandbox}\n\n"
-                                f"Old directory preserved at:\n{current_sandbox}",
+                                "Confirm File Copy",
+                                f"Found {file_count} files ({total_size_gb:.2f} GB) in current sandbox:\n{current_sandbox}\n\n"
+                                f"Copy these files to the new sandbox path?\n{new_sandbox}",
+                                QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No,
+                                QtWidgets.QMessageBox.Yes,
                             )
-                    else:
-                        QtWidgets.QMessageBox.warning(
+
+                            if confirm_reply == QtWidgets.QMessageBox.Yes:
+                                copy_success = self._copy_sandbox_files(
+                                    current_sandbox, new_sandbox
+                                )
+
+                                if copy_success:
+                                    # Ask if user wants to delete old files
+                                    delete_reply = QtWidgets.QMessageBox.question(
+                                        None,
+                                        "Delete Old Files?",
+                                        f"Successfully copied files to:\n{new_sandbox}\n\n"
+                                        f"Do you want to delete the old sandbox directory?\n{current_sandbox}",
+                                        QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No,
+                                        QtWidgets.QMessageBox.No,
+                                    )
+
+                                    if delete_reply == QtWidgets.QMessageBox.Yes:
+                                        self._delete_old_sandbox(current_sandbox)
+                                        QtWidgets.QMessageBox.information(
+                                            None,
+                                            "Migration Complete",
+                                            f"Successfully migrated sandbox:\n"
+                                            f"From: {current_sandbox}\n"
+                                            f"To: {new_sandbox}\n\n"
+                                            f"Old directory has been deleted.",
+                                        )
+                                    else:
+                                        QtWidgets.QMessageBox.information(
+                                            None,
+                                            "Files Copied",
+                                            f"Successfully copied files to:\n{new_sandbox}\n\n"
+                                            f"Old directory preserved at:\n{current_sandbox}",
+                                        )
+                                else:
+                                    QtWidgets.QMessageBox.warning(
+                                        None,
+                                        "Copy Cancelled",
+                                        "File copy operation was cancelled or failed.\n"
+                                        "Sandbox path has been updated but files were not copied.",
+                                    )
+                            else:
+                                QtWidgets.QMessageBox.information(
+                                    None,
+                                    "Sandbox Path Updated",
+                                    f"AYON Local Sandbox Path updated to:\n{new_sandbox}\n\n"
+                                    "Files were not copied from the previous location.",
+                                )
+
+                    except Exception as e:
+                        scanning_dialog.close()
+                        log.error(f"Error during file scanning: {e}")
+                        QtWidgets.QMessageBox.critical(
                             None,
-                            "Copy Cancelled",
-                            "File copy operation was cancelled or failed.\n"
-                            "Sandbox path has been updated but files were not copied.",
+                            "Scanning Error",
+                            f"Error scanning sandbox directory: {str(e)}",
                         )
-                elif "reply" in locals() and reply == QtWidgets.QMessageBox.No:
+                        return
+                else:
                     QtWidgets.QMessageBox.information(
                         None,
                         "Sandbox Path Updated",
@@ -310,104 +317,109 @@ class SetAyonSandboxPathAction(LocalConfigCompatibleAction):
             sandbox_path = os.path.normpath(sandbox_path)
         return sandbox_path
 
-    def _get_sandbox_files(self, sandbox_path, progress_dialog=None):
-        """Get list of files in the sandbox directory with progress tracking"""
-        files_to_copy = []
-
-        try:
-            # Count total directories first for progress tracking
-            total_dirs = 0
-            for root, dirs, files in os.walk(sandbox_path):
-                total_dirs += 1
-                if progress_dialog and progress_dialog.cancelled:
-                    return []
-
-            # Reset for actual scanning
-            scanned_dirs = 0
-            for root, dirs, files in os.walk(sandbox_path):
-                if progress_dialog and progress_dialog.cancelled:
-                    return []
-
-                # Update progress
-                if progress_dialog:
-                    progress_dialog.set_determinate_progress(scanned_dirs, total_dirs)
-                    progress_dialog.set_status(
-                        f"Scanning directory: {os.path.basename(root)}"
-                    )
-
-                for file in files:
-                    file_path = os.path.join(root, file)
-                    # Skip hidden files and system files
-                    if not file.startswith(".") and not file.startswith("~"):
-                        files_to_copy.append(file_path)
-
-                scanned_dirs += 1
-
-        except Exception as e:
-            log.warning(f"Error scanning sandbox directory {sandbox_path}: {e}")
-
-        return files_to_copy
-
-    def _calculate_total_size(self, files_list, progress_dialog=None):
-        """Calculate total size of files in GB with progress tracking"""
+    def _count_and_size_bytes(self, root_path, progress_dialog=None):
+        """Fast count and size calculation using os.scandir with progress tracking"""
         total_size = 0
-        total_files = len(files_list)
+        file_count = 0
+        stack = [root_path]
+        processed_dirs = 0
 
-        for i, file_path in enumerate(files_list):
+        while stack:
             if progress_dialog and progress_dialog.cancelled:
-                return 0
+                return 0, 0
 
-            # Update progress
-            if progress_dialog:
-                progress_dialog.set_determinate_progress(i, total_files)
+            directory = stack.pop()
+            processed_dirs += 1
+
+            # Update progress periodically
+            if progress_dialog and processed_dirs % 10 == 0:
                 progress_dialog.set_status(
-                    f"Calculating size: {os.path.basename(file_path)}"
+                    f"Scanning: {os.path.basename(directory)}"
                 )
 
             try:
-                if os.path.exists(file_path):
-                    total_size += os.path.getsize(file_path)
-            except (OSError, IOError):
-                # Skip files that can't be accessed
-                continue
+                with os.scandir(directory) as it:
+                    for entry in it:
+                        try:
+                            if entry.is_dir(follow_symlinks=False):
+                                stack.append(entry.path)
+                            elif entry.is_file(follow_symlinks=False):
+                                # Skip hidden files and system files
+                                if not entry.name.startswith(".") and not entry.name.startswith("~"):
+                                    file_count += 1
+                                    total_size += entry.stat(follow_symlinks=False).st_size
+                        except (PermissionError, OSError):
+                            # Skip files/dirs that can't be accessed
+                            pass
+            except (PermissionError, OSError):
+                # Skip directories that can't be accessed
+                pass
 
-        return total_size / (1024 * 1024 * 1024)  # Convert to GB
+        return file_count, total_size
 
-    def _copy_sandbox_files(self, source_path, dest_path, files_to_copy):
+    def _copy_sandbox_files(self, source_path, dest_path):
         """Copy files from source to destination sandbox with progress tracking"""
         progress_dialog = None
         try:
             # Create destination directory if it doesn't exist
             os.makedirs(dest_path, exist_ok=True)
 
+            # First, count total files to copy for progress bar
+            file_count, _ = self._count_and_size_bytes(source_path)
+            
+            if file_count == 0:
+                return True
+
             # Create and show progress dialog
-            progress_dialog = CopyProgressDialog(None, len(files_to_copy))
+            progress_dialog = CopyProgressDialog(None, file_count)
             progress_dialog.show()
             progress_dialog.set_status("Starting copy operation...")
             QtWidgets.QApplication.processEvents()
 
             copied_files = 0
-            for i, source_file in enumerate(files_to_copy):
+            stack = [source_path]
+
+            while stack:
                 # Check if operation was cancelled
                 if progress_dialog.cancelled:
                     log.info("File copy operation cancelled by user")
+                    progress_dialog.close()
                     return False
 
-                # Calculate relative path from source
-                rel_path = os.path.relpath(source_file, source_path)
-                dest_file = os.path.join(dest_path, rel_path)
+                directory = stack.pop()
 
-                # Create destination directory if needed
-                dest_dir = os.path.dirname(dest_file)
-                os.makedirs(dest_dir, exist_ok=True)
+                try:
+                    with os.scandir(directory) as it:
+                        for entry in it:
+                            try:
+                                # Calculate relative path from source
+                                rel_path = os.path.relpath(entry.path, source_path)
+                                dest_entry = os.path.join(dest_path, rel_path)
 
-                # Copy file
-                shutil.copy2(source_file, dest_file)
-                copied_files += 1
+                                if entry.is_dir(follow_symlinks=False):
+                                    # Create destination directory
+                                    os.makedirs(dest_entry, exist_ok=True)
+                                    stack.append(entry.path)
+                                elif entry.is_file(follow_symlinks=False):
+                                    # Skip hidden files and system files
+                                    if not entry.name.startswith(".") and not entry.name.startswith("~"):
+                                        # Create destination directory if needed
+                                        dest_dir = os.path.dirname(dest_entry)
+                                        os.makedirs(dest_dir, exist_ok=True)
 
-                # Update progress
-                progress_dialog.update_progress(source_file, copied_files, source_file)
-                log.debug(f"Copied {source_file} to {dest_file}")
+                                        # Copy file
+                                        shutil.copy2(entry.path, dest_entry)
+                                        copied_files += 1
+
+                                        # Update progress
+                                        progress_dialog.update_progress(entry.path, copied_files, entry.path)
+                                        log.debug(f"Copied {entry.path} to {dest_entry}")
+                            except (PermissionError, OSError) as e:
+                                log.warning(f"Skipping {entry.path}: {e}")
+                                continue
+                except (PermissionError, OSError) as e:
+                    log.warning(f"Skipping directory {directory}: {e}")
+                    continue
 
             # Close progress dialog
             progress_dialog.close()

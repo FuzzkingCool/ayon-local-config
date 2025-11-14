@@ -388,7 +388,15 @@ class SpinBoxSettingWidget(SettingWidget):
         return self.spin_box.value()
 
     def set_value(self, value):
-        self.spin_box.setValue(int(value) if value is not None else 0)
+        if value is None:
+            self.spin_box.setValue(0)
+        else:
+            try:
+                int_val = int(value)
+                self.spin_box.setValue(int_val)
+            except (ValueError, TypeError) as e:
+                log.warning(f"Invalid value for spinbox: {value} (type: {type(value)}), defaulting to 0. Error: {e}")
+                self.spin_box.setValue(0)
 
 
 class DividerSettingWidget(SettingWidget):
@@ -672,16 +680,51 @@ class ConfigGroupWidget(QtWidgets.QWidget):
     def _on_setting_changed(self, setting_id: str, value):
         """Handle setting value change"""
         try:
-            self.storage.set_setting_value(self.group_id, setting_id, value)
-            log.debug(f"Saved setting {self.group_id}.{setting_id} = {value}")
+            # Get the widget type from the setting widget
+            setting_widget = self.setting_widgets.get(setting_id)
+            setting_type = None
+            if setting_widget and hasattr(setting_widget, "setting_config"):
+                setting_type = setting_widget.setting_config.get("type")
+            
+            self.storage.set_setting_value(self.group_id, setting_id, value, setting_type)
+            log.debug(f"Saved setting {self.group_id}.{setting_id} = {value} (type: {setting_type})")
 
             # Check if this setting has an action to trigger
             setting_widget = self.setting_widgets.get(setting_id)
             if setting_widget and hasattr(setting_widget, "setting_config"):
                 action_name = setting_widget.setting_config.get("action_name")
-                log.debug(f"Setting {setting_id} has action_name: {action_name}")
+                # Get action data from setting config (same as buttons do)
+                action_data = setting_widget.setting_config.get("action_data", "")
+                log.debug(f"Setting {setting_id} has action_name: {action_name}, action_data: {action_data}")
                 if action_name:
-                    self._trigger_action(action_name, value)
+                    # Get the full project config data for the action
+                    full_config = self.storage.load_config()
+                    project_config = full_config.get("projects", {}).get(self.storage.project_name, {})
+                    
+                    # Try to get current UI values if we have access to tab_widget
+                    current_ui_values = {}
+                    if hasattr(self, 'tab_widget'):
+                        try:
+                            for i in range(self.tab_widget.count()):
+                                tab_widget = self.tab_widget.widget(i)
+                                if hasattr(tab_widget, "get_widget_values"):
+                                    tab_values = tab_widget.get_widget_values()
+                                    current_ui_values.update(tab_values)
+                        except Exception as e:
+                            log.debug(f"Could not get current UI values: {e}")
+                    
+                    # Merge saved config with current UI values
+                    user_settings = project_config.get("user_settings", {}).copy()
+                    user_settings.update(current_ui_values)
+                    
+                    # Pass the full project config with all nested structures
+                    config_data = project_config.copy()
+                    config_data["user_settings"] = user_settings
+                    config_data["_triggered_setting_value"] = value
+
+                    # Execute the action directly (same as buttons do)
+                    from ayon_local_config.plugin import execute_action_by_name
+                    execute_action_by_name(action_name, config_data, action_data)
 
         except Exception as e:
             log.error(f"Failed to save setting {setting_id}: {e}")
@@ -770,7 +813,8 @@ class ConfigGroupWidget(QtWidgets.QWidget):
                             log.debug(f"Set {setting_id} to default: {default_val}")
                             
                             # Save the default value to the config file
-                            self.storage.set_setting_value(self.group_id, setting_id, default_val)
+                            setting_type = widget.setting_config.get("type") if hasattr(widget, "setting_config") else None
+                            self.storage.set_setting_value(self.group_id, setting_id, default_val, setting_type)
                             log.debug(f"Saved default value for {setting_id} to config: {default_val}")
                             
                             # Trigger action for default values to register environment variables
@@ -789,7 +833,8 @@ class ConfigGroupWidget(QtWidgets.QWidget):
                             log.debug(f"Set {setting_id} to empty string default")
                             
                             # Save the empty string default to the config file
-                            self.storage.set_setting_value(self.group_id, setting_id, "")
+                            setting_type = widget.setting_config.get("type") if hasattr(widget, "setting_config") else None
+                            self.storage.set_setting_value(self.group_id, setting_id, "", setting_type)
                             log.debug(f"Saved empty string default for {setting_id} to config")
                             
                             # Trigger action for empty string defaults to register environment variables

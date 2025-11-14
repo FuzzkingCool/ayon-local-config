@@ -215,6 +215,15 @@ class EnvironmentVariableRegistry:
                 os.environ[var_name] = value
                 restored_count += 1
                 log.debug(f"Restored global environment variable {var_name} = {value}")
+                # Verify the variable was actually set
+                actual_value = os.environ.get(var_name)
+                if actual_value != value:
+                    log.warning(
+                        f"Environment variable {var_name} was set to '{value}' but "
+                        f"os.environ.get() returns '{actual_value}'"
+                    )
+                else:
+                    log.debug(f"Verified {var_name} = {actual_value} in os.environ")
             
             log.info(f"Restored {restored_count} environment variables on addon load")
             
