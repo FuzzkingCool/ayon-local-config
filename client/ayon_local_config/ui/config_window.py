@@ -280,7 +280,6 @@ class ButtonSettingWidget(SettingWidget):
         self.button.clicked.connect(self._execute_action)
 
         layout.addWidget(self.button)
-        layout.addStretch()  # Push button to the left
 
     def _execute_action(self):
         action_name = self.setting_config.get("action_name", "")
@@ -1185,7 +1184,7 @@ class LocalConfigWindow(QtWidgets.QWidget):
             # Trigger actions for settings that have action_name defined
             for setting_id, value in user_settings.items():
                 # Find the setting definition to get the action_name
-                for group in self.settings_structure.get("tab_groups", []):
+                for group in self.settings.get("tab_groups", []):
                     for setting in group.get("settings", []):
                         if setting.get("action_name") and setting.get("label"):
                             # Generate setting_id from label to match
@@ -1195,10 +1194,65 @@ class LocalConfigWindow(QtWidgets.QWidget):
                                 action_name = setting["action_name"]
                                 if action_name:
                                     log.info(f"Triggering action for existing value: {action_name} = {value}")
-                                    self._trigger_action(action_name, value)
+                                    self._trigger_action(action_name, value, config)
                                 break
         except Exception as e:
             log.error(f"Error triggering actions for existing values: {e}")
+
+    def _generate_setting_id(self, setting_label: str) -> str:
+        """Generate a setting ID from a label"""
+        if not setting_label:
+            return ""
+        return setting_label.lower().replace(" ", "_").replace("-", "_")
+
+    def _trigger_action(self, action_name: str, value, config=None):
+        """Trigger an action when a setting value changes"""
+        log.info(f"Triggering action: {action_name} with value: {value}")
+        try:
+            # Get the full project config data for the action
+            if config is None:
+                full_config = self.storage.load_config()
+            else:
+                full_config = config
+            project_config = full_config.get("projects", {}).get(self.storage.project_name, {})
+            
+            # Try to get current UI values if we have access to tab_widget
+            current_ui_values = {}
+            if hasattr(self, 'tab_widget'):
+                try:
+                    for i in range(self.tab_widget.count()):
+                        tab_widget = self.tab_widget.widget(i)
+                        if hasattr(tab_widget, "get_widget_values"):
+                            tab_values = tab_widget.get_widget_values()
+                            current_ui_values.update(tab_values)
+                except Exception as e:
+                    log.debug(f"Could not get current UI values: {e}")
+            
+            # Merge saved config with current UI values (UI values take precedence)
+            user_settings = project_config.get("user_settings", {}).copy()
+            user_settings.update(current_ui_values)
+            
+            # Pass the full project config with all nested structures
+            config_data = project_config.copy()
+            config_data["user_settings"] = user_settings
+
+            # Add the specific setting value to the config data
+            config_data["_triggered_setting_value"] = value
+
+            # Execute the action
+            from ayon_local_config.plugin import execute_action_by_name
+
+            success = execute_action_by_name(action_name, config_data, "")
+
+            if success:
+                log.info(
+                    f"Successfully triggered action {action_name} on value change with value: {value}"
+                )
+            else:
+                log.warning(f"Failed to trigger action {action_name} on value change")
+
+        except Exception as e:
+            log.error(f"Error triggering action {action_name}: {e}")
 
     def _set_content_based_minimum_size(self):
         """Calculate and set minimum size based on content"""
