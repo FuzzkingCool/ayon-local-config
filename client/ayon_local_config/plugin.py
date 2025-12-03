@@ -220,11 +220,11 @@ def execute_action_by_name(
                     action_instance.execute_with_config(config_data)
             else:
                 log.error(
-                    f"Action {action_name} must implement execute_with_config method"
-                )
+                        f"Action {action_name} must implement execute_with_config method"
+                    )
                 return False
 
-            log.info(f"Successfully executed action: {action_name}")
+            log.debug(f"Successfully executed action: {action_name}")
             return True
         else:
             log.warning(f"Action not found: {action_name}")

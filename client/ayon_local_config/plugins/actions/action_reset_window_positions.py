@@ -20,7 +20,7 @@ class ResetWindowPositionsAction(LocalConfigCompatibleAction):
 
     def execute_with_config(self, config_data):
         """Execute the window position reset action"""
-        log.info("ResetWindowPositionsAction.execute_with_config called")
+        log.debug("ResetWindowPositionsAction.execute_with_config called")
         try:
             settings = QtCore.QSettings(
                 QtCore.QSettings.IniFormat,
@@ -28,10 +28,10 @@ class ResetWindowPositionsAction(LocalConfigCompatibleAction):
                 "ayon_core.vendor.python.qargparse",
                 "QArgparse",
             )
-            log.info(f"Settings file: {settings.fileName()}")
+            log.debug(f"Settings file: {settings.fileName()}")
             settings.clear()
             settings.sync()
-            log.info("QArgparse UI geometry cleared.")
+            log.debug("QArgparse UI geometry cleared.")
         except Exception as e:
             log.error(f"Error resetting window positions: {e}")
             raise

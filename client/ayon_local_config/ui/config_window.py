@@ -730,7 +730,7 @@ class ConfigGroupWidget(QtWidgets.QWidget):
 
     def _trigger_action(self, action_name: str, value):
         """Trigger an action when a setting value changes"""
-        log.info(f"Triggering action: {action_name} with value: {value}")
+        log.debug(f"Triggering action: {action_name} with value: {value}")
         try:
             # Get the full project config data for the action
             full_config = self.storage.load_config()
@@ -766,7 +766,7 @@ class ConfigGroupWidget(QtWidgets.QWidget):
             success = execute_action_by_name(action_name, config_data, "")
 
             if success:
-                log.info(
+                log.debug(
                     f"Successfully triggered action {action_name} on value change with value: {value}"
                 )
             else:
@@ -1193,7 +1193,7 @@ class LocalConfigWindow(QtWidgets.QWidget):
                             if generated_id == setting_id:
                                 action_name = setting["action_name"]
                                 if action_name:
-                                    log.info(f"Triggering action for existing value: {action_name} = {value}")
+                                    log.debug(f"Triggering action for existing value: {action_name} = {value}")
                                     self._trigger_action(action_name, value, config)
                                 break
         except Exception as e:
@@ -1207,7 +1207,7 @@ class LocalConfigWindow(QtWidgets.QWidget):
 
     def _trigger_action(self, action_name: str, value, config=None):
         """Trigger an action when a setting value changes"""
-        log.info(f"Triggering action: {action_name} with value: {value}")
+        log.debug(f"Triggering action: {action_name} with value: {value}")
         try:
             # Get the full project config data for the action
             if config is None:
@@ -1245,7 +1245,7 @@ class LocalConfigWindow(QtWidgets.QWidget):
             success = execute_action_by_name(action_name, config_data, "")
 
             if success:
-                log.info(
+                log.debug(
                     f"Successfully triggered action {action_name} on value change with value: {value}"
                 )
             else:
@@ -1369,7 +1369,7 @@ class LocalConfigWindow(QtWidgets.QWidget):
             success = execute_action_by_name(action_name, config_data, "")
 
             if success:
-                log.info(f"Successfully executed action: {action_name}")
+                log.debug(f"Successfully executed action: {action_name}")
                 self.status_bar.setText(f"Executed {action_name}")
             else:
                 log.warning(f"Failed to execute action: {action_name}")
@@ -1481,7 +1481,7 @@ class LocalConfigWindow(QtWidgets.QWidget):
             # Reload all values for the new project
             self._reload_settings_for_project(project_name)
 
-            log.info(f"Switched to project: {project_name}")
+            log.debug(f"Switched to project: {project_name}")
 
         except Exception as e:
             log.error(f"Failed to change project: {e}")
@@ -1529,7 +1529,7 @@ class LocalConfigWindow(QtWidgets.QWidget):
 
     def closeEvent(self, event):
         """Handle window close event"""
-        log.info("Local Config window closed")
+        log.debug("Local Config window closed")
         # Don't delete the window, just hide it
         self.hide()
         event.ignore()  # Don't actually close, just hide

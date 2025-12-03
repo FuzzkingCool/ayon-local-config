@@ -87,7 +87,7 @@ class LocalConfigStorage:
                 return self._initialize_default_config()
         except json.JSONDecodeError as e:
             log.error(f"Failed to parse JSON config: {e}")
-            log.info("Initializing with default config structure")
+            log.debug("Initializing with default config structure")
             return self._initialize_default_config()
         except Exception as e:
             log.error(f"Failed to load config: {e}")
@@ -287,7 +287,7 @@ class LocalConfigStorage:
                 import shutil
 
                 shutil.copy2(self.config_file, backup_path)
-                log.info(f"Created config backup: {backup_path}")
+                log.debug(f"Created config backup: {backup_path}")
                 return backup_path
             return ""
         except Exception as e:

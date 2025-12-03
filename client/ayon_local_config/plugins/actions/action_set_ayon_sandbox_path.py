@@ -118,7 +118,7 @@ class SetAyonSandboxPathAction(LocalConfigCompatibleAction):
 
     def execute_with_config(self, config_data):
         """Execute the sandbox path management action"""
-        log.info(
+        log.debug(
             f"SetAyonSandboxPathAction.execute_with_config called with config_data keys: {list(config_data.keys())}"
         )
         try:
@@ -143,7 +143,7 @@ class SetAyonSandboxPathAction(LocalConfigCompatibleAction):
 
             # Check if paths are the same
             if current_sandbox and os.path.samefile(current_sandbox, new_sandbox):
-                log.info(f"AYON Local Sandbox Path is already set to: {new_sandbox}")
+                log.debug(f"AYON Local Sandbox Path is already set to: {new_sandbox}")
                 # Still update the environment variable to ensure it's registered
                 self._update_environment_variable(new_sandbox)
                 return
@@ -177,7 +177,7 @@ class SetAyonSandboxPathAction(LocalConfigCompatibleAction):
 
                         if scanning_dialog.cancelled:
                             scanning_dialog.close()
-                            log.info("File scanning was cancelled by user")
+                            log.debug("File scanning was cancelled by user")
                             return
 
                         # Close scanning dialog
@@ -382,7 +382,7 @@ class SetAyonSandboxPathAction(LocalConfigCompatibleAction):
             while stack:
                 # Check if operation was cancelled
                 if progress_dialog.cancelled:
-                    log.info("File copy operation cancelled by user")
+                    log.debug("File copy operation cancelled by user")
                     progress_dialog.close()
                     return False
 
@@ -438,7 +438,7 @@ class SetAyonSandboxPathAction(LocalConfigCompatibleAction):
                 import shutil
 
                 shutil.rmtree(old_sandbox_path)
-                log.info(f"Deleted old sandbox directory: {old_sandbox_path}")
+                log.debug(f"Deleted old sandbox directory: {old_sandbox_path}")
             else:
                 log.warning(f"Old sandbox directory not found: {old_sandbox_path}")
         except Exception as e:
@@ -459,4 +459,4 @@ class SetAyonSandboxPathAction(LocalConfigCompatibleAction):
             new_sandbox_path,
             "AYON Local Sandbox Path - automatically set by Local Config addon",
         )
-        log.info(f"Registered AYON_LOCAL_SANDBOX with registry: {new_sandbox_path}")
+        log.debug(f"Registered AYON_LOCAL_SANDBOX with registry: {new_sandbox_path}")

@@ -57,7 +57,7 @@ class SetEnvironmentVariableAction(LocalConfigCompatibleAction):
                 "Project environment variable - automatically set by Local Config addon",
             )
 
-            log.info(
+            log.debug(
                 f"Registered environment variable '{var_name}' = '{var_value_str}'"
             )
 

@@ -22,7 +22,7 @@ class SetUnityProjectAction(LocalConfigCompatibleAction):
 
     def execute_with_config(self, config_data):
         """Execute the Unity project path setting action"""
-        log.info(
+        log.debug(
             f"SetUnityProjectAction.execute_with_config called with config_data keys: {list(config_data.keys())}"
         )
         try:
@@ -61,7 +61,7 @@ class SetUnityProjectAction(LocalConfigCompatibleAction):
                     unity_project_path,
                     "AYON Unity Project Path - automatically set by Local Config addon",
                 )
-                log.info(f"Registered AYON_UNITY_PROJECT_PATH with registry: {unity_project_path}")
+                log.debug(f"Registered AYON_UNITY_PROJECT_PATH with registry: {unity_project_path}")
 
                 # Register auto-open setting based on toggle (only if project path exists)
                 # Always register the environment variable, just with different values
@@ -71,13 +71,13 @@ class SetUnityProjectAction(LocalConfigCompatibleAction):
                     auto_open_value,
                     "AYON Unity Auto Open Project - automatically set by Local Config addon",
                 )
-                log.info(f"Registered AYON_UNITY_AUTO_OPEN_PROJECT with registry: {auto_open_value}")
+                log.debug(f"Registered AYON_UNITY_AUTO_OPEN_PROJECT with registry: {auto_open_value}")
             else:
                 # No Unity project path set, unregister both variables
                 self.unregister_environment_variable("AYON_UNITY_PROJECT_PATH")
                 self.unregister_environment_variable("AYON_UNITY_AUTO_OPEN_PROJECT")
-                log.info("Unregistered AYON_UNITY_PROJECT_PATH from registry")
-                log.info("Unregistered AYON_UNITY_AUTO_OPEN_PROJECT from registry")
+                log.debug("Unregistered AYON_UNITY_PROJECT_PATH from registry")
+                log.debug("Unregistered AYON_UNITY_AUTO_OPEN_PROJECT from registry")
 
             return True
 

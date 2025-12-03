@@ -35,7 +35,7 @@ class CleanLogsAction(LocalConfigCompatibleAction):
             logs_dir = os.path.join(sandbox_path, "logs").replace("\\", "/")
 
             if not os.path.exists(logs_dir):
-                log.info("No logs directory found")
+                log.debug("No logs directory found")
                 return
 
             # Ask for confirmation
@@ -62,7 +62,7 @@ class CleanLogsAction(LocalConfigCompatibleAction):
                 QtWidgets.QMessageBox.information(
                     None, "Clean Logs", f"Cleaned {cleaned_count} log files."
                 )
-                log.info(f"Cleaned {cleaned_count} log files")
+                log.debug(f"Cleaned {cleaned_count} log files")
 
         except Exception as e:
             log.error(f"Error in clean logs action: {e}")
