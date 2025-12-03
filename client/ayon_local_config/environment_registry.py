@@ -69,7 +69,7 @@ class EnvironmentVariableRegistry:
         
         # Save migrated format if we found complex data
         if any(isinstance(var_data, dict) for var_data in env_vars.values()):
-            log.info(f"Migrated {len(migrated_vars)} environment variables to simple format")
+            log.debug(f"Migrated {len(migrated_vars)} environment variables to simple format")
             self._save_migrated_variables(migrated_vars)
         
         return migrated_vars
@@ -80,7 +80,7 @@ class EnvironmentVariableRegistry:
             config = self.storage.load_config()
             config['environment_variables'] = migrated_vars
             self.storage.save_config(config)
-            log.info("Saved migrated environment variables to simple format")
+            log.debug("Saved migrated environment variables to simple format")
         except Exception as e:
             log.error(f"Failed to save migrated environment variables: {e}")
     
@@ -126,7 +126,7 @@ class EnvironmentVariableRegistry:
             if persistent:
                 self._save_registered_variables()
             
-            log.info(f"Registered environment variable {var_name} = {value}")
+            log.debug(f"Registered environment variable {var_name} = {value}")
             return True
             
         except Exception as e:
@@ -159,7 +159,7 @@ class EnvironmentVariableRegistry:
             # Save changes
             self._save_registered_variables()
             
-            log.info(f"Unregistered environment variable {var_name}")
+            log.debug(f"Unregistered environment variable {var_name}")
             return True
             
         except Exception as e:
@@ -192,7 +192,7 @@ class EnvironmentVariableRegistry:
             # Save changes
             self._save_registered_variables()
             
-            log.info(f"Updated environment variable {var_name} to: {new_value}")
+            log.debug(f"Updated environment variable {var_name} to: {new_value}")
             return True
             
         except Exception as e:
@@ -225,7 +225,7 @@ class EnvironmentVariableRegistry:
                 else:
                     log.debug(f"Verified {var_name} = {actual_value} in os.environ")
             
-            log.info(f"Restored {restored_count} environment variables on addon load")
+            log.debug(f"Restored {restored_count} environment variables on addon load")
             
         except Exception as e:
             log.error(f"Failed to restore environment variables: {e}")
@@ -277,7 +277,7 @@ class EnvironmentVariableRegistry:
                     del os.environ[var_name]
             
             self._registered_vars.clear()
-            log.info("Cleared all registered environment variables")
+            log.debug("Cleared all registered environment variables")
             
             self._save_registered_variables()
             

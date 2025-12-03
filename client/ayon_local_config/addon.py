@@ -40,7 +40,7 @@ class LocalConfigAddon(AYONAddon, ITrayAddon):
 
         # Check if addon is enabled
         if not self.settings.get("enabled", False):
-            log.info("Local Config addon is disabled")
+            log.debug("Local Config addon is disabled")
             return
 
         # Initialize environment variable registry
@@ -53,7 +53,7 @@ class LocalConfigAddon(AYONAddon, ITrayAddon):
             if self._environment_registry:
                 try:
                     self._environment_registry.restore_environment_variables()
-                    log.info("Restored environment variables on addon initialization")
+                    log.debug("Restored environment variables on addon initialization")
                 except Exception as e:
                     log.error(f"Failed to restore environment variables: {e}")
         except Exception as e:
@@ -71,7 +71,7 @@ class LocalConfigAddon(AYONAddon, ITrayAddon):
         if self._environment_registry:
             try:
                 self._environment_registry.restore_environment_variables()
-                log.info("Restored environment variables on tray initialization")
+                log.debug("Restored environment variables on tray initialization")
             except Exception as e:
                 log.error(f"Failed to restore environment variables: {e}")
 
@@ -95,12 +95,12 @@ class LocalConfigAddon(AYONAddon, ITrayAddon):
 
             # Execute sandbox path action if sandbox folder is set
             if "ayon_sandbox_folder" in user_settings:
-                log.info("Initializing AYON sandbox environment variable from settings")
+                log.debug("Initializing AYON sandbox environment variable from settings")
                 execute_action_by_name("SetAyonSandboxPathAction", config_data)
 
             # Execute Unity project action if Unity project path is set
             if "unity_project_path" in user_settings:
-                log.info(
+                log.debug(
                     "Initializing Unity project environment variable from settings"
                 )
                 execute_action_by_name("SetUnityProjectAction", config_data)
@@ -159,13 +159,13 @@ class LocalConfigAddon(AYONAddon, ITrayAddon):
 
                 # Create window with complete UI
                 self._config_window = LocalConfigWindow(self.settings)
-                log.info("Created new Local Config window")
+                log.debug("Created new Local Config window")
             else:
-                log.info("Reusing existing Local Config window")
+                log.debug("Reusing existing Local Config window")
 
             # Show window
             self._config_window.show()
-            log.info("Local Config window shown")
+            log.debug("Local Config window shown")
 
         except Exception as e:
             log.error(f"Failed to show Local Config window: {e}")
