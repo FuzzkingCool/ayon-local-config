@@ -1,11 +1,36 @@
 # -*- coding: utf-8 -*-
+import json
 import os
 import shutil
+import traceback
+from datetime import datetime
 
 from qtpy import QtWidgets
 
 from ayon_local_config.logger import log
 from ayon_local_config.plugin import LocalConfigCompatibleAction
+
+
+def _save_migration_report(report, dest_dir):
+    """Save migration report to a JSON file in dest_dir. Returns path or None."""
+    if not report:
+        return None
+    try:
+        os.makedirs(dest_dir, exist_ok=True)
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        report_path = os.path.join(
+            dest_dir, f"sandbox_migration_report_{timestamp}.json"
+        )
+        with open(report_path, "w", encoding="utf-8") as f:
+            json.dump(
+                {"summary": {"total_issues": len(report)}, "issues": report},
+                f,
+                indent=2,
+            )
+        return report_path
+    except Exception as e:
+        log.error(f"Failed to save migration report: {e}", exc_info=True)
+        return None
 
 
 class CopyProgressDialog(QtWidgets.QDialog):
@@ -204,7 +229,7 @@ class SetAyonSandboxPathAction(LocalConfigCompatibleAction):
                             )
 
                             if confirm_reply == QtWidgets.QMessageBox.Yes:
-                                copy_success = self._copy_sandbox_files(
+                                copy_success, report = self._copy_sandbox_files(
                                     current_sandbox, new_sandbox
                                 )
 
@@ -220,28 +245,61 @@ class SetAyonSandboxPathAction(LocalConfigCompatibleAction):
                                     )
 
                                     if delete_reply == QtWidgets.QMessageBox.Yes:
-                                        self._delete_old_sandbox(current_sandbox)
-                                        QtWidgets.QMessageBox.information(
-                                            None,
-                                            "Migration Complete",
-                                            f"Successfully migrated sandbox:\n"
-                                            f"From: {current_sandbox}\n"
-                                            f"To: {new_sandbox}\n\n"
-                                            f"Old directory has been deleted.",
+                                        delete_error = self._delete_old_sandbox(
+                                            current_sandbox, report
                                         )
+                                    report_path = _save_migration_report(
+                                        report, new_sandbox
+                                    )
+                                    msg_extra = ""
+                                    if report_path:
+                                        msg_extra = (
+                                            f"\n\nA report of {len(report)} issue(s) was saved to:\n{report_path}"
+                                        )
+                                    if delete_reply == QtWidgets.QMessageBox.Yes:
+                                        if not delete_error:
+                                            QtWidgets.QMessageBox.information(
+                                                None,
+                                                "Migration Complete",
+                                                f"Successfully migrated sandbox:\n"
+                                                f"From: {current_sandbox}\n"
+                                                f"To: {new_sandbox}\n\n"
+                                                f"Old directory has been deleted."
+                                                + msg_extra,
+                                            )
+                                        else:
+                                            QtWidgets.QMessageBox.warning(
+                                                None,
+                                                "Cleanup Warning",
+                                                f"Files were copied to:\n{new_sandbox}\n\n"
+                                                f"Failed to delete old directory:\n{current_sandbox}\n\n"
+                                                f"Error: {delete_error.get('error', '')}"
+                                                + msg_extra,
+                                            )
                                     else:
                                         QtWidgets.QMessageBox.information(
                                             None,
                                             "Files Copied",
                                             f"Successfully copied files to:\n{new_sandbox}\n\n"
-                                            f"Old directory preserved at:\n{current_sandbox}",
+                                            f"Old directory preserved at:\n{current_sandbox}"
+                                            + msg_extra,
                                         )
                                 else:
+                                    report_path = _save_migration_report(
+                                        report, new_sandbox
+                                    )
+                                    msg = (
+                                        "File copy operation was cancelled or failed.\n"
+                                        "Sandbox path has been updated but files were not copied."
+                                    )
+                                    if report_path:
+                                        msg += (
+                                            f"\n\nA report of {len(report)} issue(s) was saved to:\n{report_path}"
+                                        )
                                     QtWidgets.QMessageBox.warning(
                                         None,
                                         "Copy Cancelled",
-                                        "File copy operation was cancelled or failed.\n"
-                                        "Sandbox path has been updated but files were not copied.",
+                                        msg,
                                     )
                             else:
                                 QtWidgets.QMessageBox.information(
@@ -253,7 +311,10 @@ class SetAyonSandboxPathAction(LocalConfigCompatibleAction):
 
                     except Exception as e:
                         scanning_dialog.close()
-                        log.error(f"Error during file scanning: {e}")
+                        log.error(
+                            f"Error during file scanning: {e}",
+                            exc_info=True,
+                        )
                         QtWidgets.QMessageBox.critical(
                             None,
                             "Scanning Error",
@@ -291,7 +352,10 @@ class SetAyonSandboxPathAction(LocalConfigCompatibleAction):
             self._update_environment_variable(new_sandbox)
 
         except Exception as e:
-            log.error(f"Error in set AYON sandbox path action: {e}")
+            log.error(
+                f"Error in set AYON sandbox path action: {e}",
+                exc_info=True,
+            )
             QtWidgets.QMessageBox.critical(
                 None, "Error", f"Error setting AYON sandbox path: {str(e)}"
             )
@@ -341,34 +405,41 @@ class SetAyonSandboxPathAction(LocalConfigCompatibleAction):
                 with os.scandir(directory) as it:
                     for entry in it:
                         try:
-                            if entry.is_dir(follow_symlinks=False):
+                            if entry.is_dir(follow_symlinks=True):
                                 stack.append(entry.path)
-                            elif entry.is_file(follow_symlinks=False):
-                                # Skip hidden files and system files
-                                if not entry.name.startswith(".") and not entry.name.startswith("~"):
-                                    file_count += 1
-                                    total_size += entry.stat(follow_symlinks=False).st_size
+                            elif entry.is_file(follow_symlinks=True):
+                                file_count += 1
+                                total_size += entry.stat(follow_symlinks=False).st_size
                         except (PermissionError, OSError):
-                            # Skip files/dirs that can't be accessed
-                            pass
+                            log.debug(
+                                f"Skipping (count): {entry.path}",
+                                exc_info=True,
+                            )
             except (PermissionError, OSError):
-                # Skip directories that can't be accessed
-                pass
+                log.debug(
+                    f"Skipping directory (count): {directory}",
+                    exc_info=True,
+                )
 
         return file_count, total_size
 
     def _copy_sandbox_files(self, source_path, dest_path):
-        """Copy files from source to destination sandbox with progress tracking"""
+        """Copy files from source to destination sandbox with progress tracking.
+
+        Returns:
+            tuple: (success: bool, report: list of dicts for user-facing errors)
+        """
         progress_dialog = None
+        report = []
         try:
             # Create destination directory if it doesn't exist
             os.makedirs(dest_path, exist_ok=True)
 
             # First, count total files to copy for progress bar
             file_count, _ = self._count_and_size_bytes(source_path)
-            
+
             if file_count == 0:
-                return True
+                return True, report
 
             # Create and show progress dialog
             progress_dialog = CopyProgressDialog(None, file_count)
@@ -384,7 +455,7 @@ class SetAyonSandboxPathAction(LocalConfigCompatibleAction):
                 if progress_dialog.cancelled:
                     log.debug("File copy operation cancelled by user")
                     progress_dialog.close()
-                    return False
+                    return False, report
 
                 directory = stack.pop()
 
@@ -396,61 +467,111 @@ class SetAyonSandboxPathAction(LocalConfigCompatibleAction):
                                 rel_path = os.path.relpath(entry.path, source_path)
                                 dest_entry = os.path.join(dest_path, rel_path)
 
-                                if entry.is_dir(follow_symlinks=False):
-                                    # Create destination directory
-                                    os.makedirs(dest_entry, exist_ok=True)
+                                if entry.is_dir(follow_symlinks=True):
                                     stack.append(entry.path)
-                                elif entry.is_file(follow_symlinks=False):
-                                    # Skip hidden files and system files
-                                    if not entry.name.startswith(".") and not entry.name.startswith("~"):
-                                        # Create destination directory if needed
-                                        dest_dir = os.path.dirname(dest_entry)
-                                        os.makedirs(dest_dir, exist_ok=True)
-
-                                        # Copy file
-                                        shutil.copy2(entry.path, dest_entry)
-                                        copied_files += 1
-
-                                        # Update progress
-                                        progress_dialog.update_progress(entry.path, copied_files, entry.path)
-                                        log.debug(f"Copied {entry.path} to {dest_entry}")
+                                    try:
+                                        os.makedirs(dest_entry, exist_ok=True)
+                                    except (PermissionError, OSError) as e:
+                                        log.warning(
+                                            f"Could not create directory {dest_entry}: {e}",
+                                            exc_info=True,
+                                        )
+                                        report.append(
+                                            {
+                                                "path": dest_entry,
+                                                "kind": "makedirs_failed",
+                                                "error": str(e),
+                                                "traceback": traceback.format_exc(),
+                                            }
+                                        )
+                                elif entry.is_file(follow_symlinks=True):
+                                    dest_dir = os.path.dirname(dest_entry)
+                                    os.makedirs(dest_dir, exist_ok=True)
+                                    shutil.copy2(entry.path, dest_entry)
+                                    copied_files += 1
+                                    progress_dialog.update_progress(
+                                        entry.path, copied_files, entry.path
+                                    )
+                                    log.debug(f"Copied {entry.path} to {dest_entry}")
                             except (PermissionError, OSError) as e:
-                                log.warning(f"Skipping {entry.path}: {e}")
+                                log.warning(
+                                    f"Skipping {entry.path}: {e}",
+                                    exc_info=True,
+                                )
+                                report.append(
+                                    {
+                                        "path": entry.path,
+                                        "kind": "skip_file",
+                                        "error": str(e),
+                                        "traceback": traceback.format_exc(),
+                                    }
+                                )
                                 continue
                 except (PermissionError, OSError) as e:
-                    log.warning(f"Skipping directory {directory}: {e}")
+                    log.warning(
+                        f"Skipping directory {directory}: {e}",
+                        exc_info=True,
+                    )
+                    report.append(
+                        {
+                            "path": directory,
+                            "kind": "skip_directory",
+                            "error": str(e),
+                            "traceback": traceback.format_exc(),
+                        }
+                    )
                     continue
 
             # Close progress dialog
             progress_dialog.close()
-            return True
+            return True, report
 
         except Exception as e:
             if progress_dialog:
                 progress_dialog.close()
-            log.error(f"Error copying sandbox files: {e}")
-            raise
+            log.error(
+                f"Error copying sandbox files: {e}",
+                exc_info=True,
+            )
+            report.append(
+                {
+                    "path": source_path,
+                    "kind": "copy_failed",
+                    "error": str(e),
+                    "traceback": traceback.format_exc(),
+                }
+            )
+            return False, report
 
-    def _delete_old_sandbox(self, old_sandbox_path):
-        """Delete the old sandbox directory after successful migration"""
+    def _delete_old_sandbox(self, old_sandbox_path, report=None):
+        """Delete the old sandbox directory after successful migration.
+
+        Returns:
+            None on success, or a report entry dict on failure (for caller to append and show).
+        """
         try:
             if os.path.exists(old_sandbox_path):
-                import shutil
-
                 shutil.rmtree(old_sandbox_path)
                 log.debug(f"Deleted old sandbox directory: {old_sandbox_path}")
             else:
-                log.warning(f"Old sandbox directory not found: {old_sandbox_path}")
+                log.warning(
+                    f"Old sandbox directory not found: {old_sandbox_path}"
+                )
+            return None
         except Exception as e:
-            log.error(f"Error deleting old sandbox directory {old_sandbox_path}: {e}")
-            # Don't raise the exception - the migration was successful, just cleanup failed
-            QtWidgets.QMessageBox.warning(
-                None,
-                "Cleanup Warning",
-                f"Files were successfully copied, but failed to delete old directory:\n{old_sandbox_path}\n\n"
-                f"Error: {str(e)}\n\n"
-                "You may need to manually delete the old directory.",
+            log.error(
+                f"Error deleting old sandbox directory {old_sandbox_path}: {e}",
+                exc_info=True,
             )
+            entry = {
+                "path": old_sandbox_path,
+                "kind": "delete_failed",
+                "error": str(e),
+                "traceback": traceback.format_exc(),
+            }
+            if report is not None:
+                report.append(entry)
+            return entry
 
     def _update_environment_variable(self, new_sandbox_path):
         """Update the AYON_LOCAL_SANDBOX environment variable using the registry"""
