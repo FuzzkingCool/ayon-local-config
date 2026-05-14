@@ -8,7 +8,7 @@ A simple AYON addon that allows users to manage local configuration settings thr
 - **Multiple setting types**: Support for text fields, checkboxes, dropdowns, and action buttons
 - **Path browser**: Text fields can be marked as file/folder paths with browse buttons
 - **Action integration**: Buttons can execute custom action plugins
-- **Local storage**: Settings are saved to `~/.ayon/settings/localconfig.json`
+- **Local storage**: Settings are saved to `~/.ayon/settings/localconfig.json` (always under your user profile, even when the AYON sandbox folder points at removable media)
 - **Tabbed interface**: Each settings group appears as a separate tab
 - **Restore defaults**: Each group has a "Restore Defaults" button
 

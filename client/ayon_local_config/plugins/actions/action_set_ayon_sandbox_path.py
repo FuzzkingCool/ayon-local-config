@@ -166,8 +166,20 @@ class SetAyonSandboxPathAction(LocalConfigCompatibleAction):
             )
             new_sandbox = os.path.normpath(new_sandbox)
 
-            # Check if paths are the same
-            if current_sandbox and os.path.samefile(current_sandbox, new_sandbox):
+            # Check if paths are the same (samefile requires both paths to exist)
+            paths_are_same = False
+            if current_sandbox and new_sandbox:
+                try:
+                    if os.path.exists(current_sandbox) and os.path.exists(
+                        new_sandbox
+                    ):
+                        paths_are_same = os.path.samefile(
+                            current_sandbox, new_sandbox
+                        )
+                except OSError:
+                    paths_are_same = False
+
+            if paths_are_same:
                 log.debug(f"AYON Local Sandbox Path is already set to: {new_sandbox}")
                 # Still update the environment variable to ensure it's registered
                 self._update_environment_variable(new_sandbox)

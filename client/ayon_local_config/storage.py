@@ -1,14 +1,58 @@
 # -*- coding: utf-8 -*-
 import json
 import os
-from typing import Dict, Any, List
+import shutil
+from typing import Any, Dict, List, Optional
 
 from ayon_local_config.logger import log
 from ayon_core.pipeline import get_current_project_name
 
 
+def _stable_localconfig_paths():
+    """Profile-local Local Config paths (never under AYON_LOCAL_SANDBOX)."""
+    config_dir = os.path.join(os.path.expanduser("~"), ".ayon", "settings")
+    return config_dir, os.path.join(config_dir, "localconfig.json")
+
+
+def _projects_effectively_empty(config: Dict[str, Any]) -> bool:
+    """True if projects is missing or every project entry is an empty dict."""
+    projects = config.get("projects")
+    if not projects:
+        return True
+    return all(not p for p in projects.values())
+
+
+def _sandbox_path_for_legacy_migration() -> Optional[str]:
+    """Sandbox root for legacy file lookup: env first, then stable JSON registry."""
+    raw = os.environ.get("AYON_LOCAL_SANDBOX")
+    if raw:
+        return os.path.normpath(os.path.expanduser(raw))
+
+    _, stable_file = _stable_localconfig_paths()
+    if not os.path.isfile(stable_file):
+        return None
+    try:
+        with open(stable_file, "r", encoding="utf-8") as f:
+            data = json.load(f)
+    except (json.JSONDecodeError, OSError, TypeError):
+        return None
+
+    env_block = data.get("environment_variables") or {}
+    val = env_block.get("AYON_LOCAL_SANDBOX")
+    if isinstance(val, dict) and "value" in val:
+        val = val["value"]
+    if not val:
+        return None
+    return os.path.normpath(os.path.expanduser(str(val)))
+
+
 class LocalConfigStorage:
-    """Handles loading and saving of local configuration data"""
+    """Handles loading and saving of local configuration data.
+
+    ``localconfig.json`` always lives under the user profile (``~/.ayon/settings``),
+    not under ``AYON_LOCAL_SANDBOX``, so settings stay available when the sandbox
+    volume is offline (e.g. removable SD).
+    """
 
     def __init__(self, project_name: str = None):
         # Get project name with fallback for Local Config addon
@@ -25,20 +69,104 @@ class LocalConfigStorage:
                 log.warning(f"Failed to get current project name: {e}, using 'default'")
                 self.project_name = "default"
         
-        # Initialize config directory (will be updated dynamically)
+        # Initialize config directory (stable profile path)
         self._update_config_paths()
         self._ensure_config_dir()
     
     def _update_config_paths(self):
-        """Update config directory and file paths based on current AYON_LOCAL_SANDBOX"""
-        # Use AYON_LOCAL_SANDBOX environment variable, fallback to ~/.ayon
-        sandbox_path = os.environ.get("AYON_LOCAL_SANDBOX")
-        if sandbox_path:
-            self.config_dir = os.path.join(sandbox_path, "settings")
-        else:
-            self.config_dir = os.path.join(os.path.expanduser("~"), ".ayon", "settings")
+        """Set config directory and file paths to the stable profile location."""
+        self.config_dir, self.config_file = _stable_localconfig_paths()
 
-        self.config_file = os.path.join(self.config_dir, "localconfig.json")
+    def _maybe_migrate_legacy_sandbox_localconfig(self) -> None:
+        """One-time style migration from old <sandbox>/settings/localconfig.json.
+
+        Older versions stored ``localconfig.json`` under ``AYON_LOCAL_SANDBOX``.
+        If the profile copy is missing or has no project data, copy or merge
+        from the legacy sandbox file when that path exists and is readable.
+        """
+        sandbox_path = _sandbox_path_for_legacy_migration()
+        if not sandbox_path:
+            return
+        legacy_file = os.path.join(sandbox_path, "settings", "localconfig.json")
+        stable_dir, stable_file = _stable_localconfig_paths()
+
+        try:
+            if os.path.normcase(os.path.abspath(legacy_file)) == os.path.normcase(
+                os.path.abspath(stable_file)
+            ):
+                return
+        except OSError:
+            return
+
+        if not os.path.isfile(legacy_file):
+            return
+
+        os.makedirs(stable_dir, exist_ok=True)
+
+        if os.path.isfile(stable_file) and os.path.getsize(stable_file) == 0:
+            try:
+                os.remove(stable_file)
+            except OSError as exc:
+                log.warning("Could not remove empty localconfig at %s: %s", stable_file, exc)
+
+        if not os.path.isfile(stable_file):
+            try:
+                shutil.copy2(legacy_file, stable_file)
+                log.info(
+                    "Migrated localconfig.json from sandbox to profile (%s -> %s)",
+                    legacy_file,
+                    stable_file,
+                )
+            except OSError as exc:
+                log.warning("Legacy localconfig copy failed: %s", exc)
+            return
+
+        try:
+            with open(stable_file, "r", encoding="utf-8") as f:
+                stable_cfg = json.load(f)
+        except (json.JSONDecodeError, OSError) as exc:
+            log.debug("Skipping legacy merge; could not read stable config: %s", exc)
+            return
+
+        if not _projects_effectively_empty(stable_cfg):
+            return
+
+        try:
+            with open(legacy_file, "r", encoding="utf-8") as f:
+                legacy_cfg = json.load(f)
+        except (json.JSONDecodeError, OSError) as exc:
+            log.debug("Skipping legacy merge; could not read legacy config: %s", exc)
+            return
+
+        if _projects_effectively_empty(legacy_cfg):
+            return
+
+        stable_cfg["projects"] = dict(legacy_cfg.get("projects") or {})
+
+        leg_env = legacy_cfg.get("environment_variables") or {}
+        stab_env = stable_cfg.get("environment_variables") or {}
+        if not stab_env and leg_env:
+            stable_cfg["environment_variables"] = dict(leg_env)
+        elif stab_env and leg_env:
+            merged_env = dict(stab_env)
+            for key, val in leg_env.items():
+                merged_env.setdefault(key, val)
+            stable_cfg["environment_variables"] = merged_env
+
+        if stable_cfg.get("last_selected_project") is None:
+            lsp = legacy_cfg.get("last_selected_project")
+            if lsp is not None:
+                stable_cfg["last_selected_project"] = lsp
+
+        try:
+            with open(stable_file, "w", encoding="utf-8") as f:
+                json.dump(stable_cfg, f, indent=2, ensure_ascii=False)
+            log.info(
+                "Merged project settings from legacy sandbox localconfig (%s)",
+                legacy_file,
+            )
+        except OSError as exc:
+            log.warning("Failed to write merged localconfig: %s", exc)
 
     def _ensure_config_dir(self):
         """Ensure the config directory exists"""
@@ -64,9 +192,10 @@ class LocalConfigStorage:
     def load_config(self) -> Dict[str, Any]:
         """Load configuration from JSON file"""
         try:
-            # Update config paths in case AYON_LOCAL_SANDBOX changed
             self._update_config_paths()
-            
+            self._ensure_config_dir()
+            self._maybe_migrate_legacy_sandbox_localconfig()
+
             if os.path.exists(self.config_file):
                 # Check if file is empty or corrupted
                 if os.path.getsize(self.config_file) == 0:
@@ -108,7 +237,6 @@ class LocalConfigStorage:
     def save_config(self, config: Dict[str, Any]) -> bool:
         """Save configuration to JSON file"""
         try:
-            # Update config paths in case AYON_LOCAL_SANDBOX changed
             self._update_config_paths()
             
             # Ensure directory exists before saving
