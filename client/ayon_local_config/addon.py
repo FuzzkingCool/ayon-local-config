@@ -151,19 +151,39 @@ class LocalConfigAddon(AYONAddon, ITrayAddon):
 
     def show_config_window(self):
         try:
-            # Check if window exists and is valid (not closed)
+            from ayon_local_config.project_context import (
+                get_user_accessible_project_names,
+                pick_accessible_project_name,
+                resolve_tray_project_name,
+            )
+            from ayon_local_config.settings_loader import load_server_settings
+            from ayon_local_config.ui.config_window import LocalConfigWindow
+
+            project_name = resolve_tray_project_name()
+            accessible_name = pick_accessible_project_name(
+                project_name,
+                get_user_accessible_project_names(),
+            )
+            if accessible_name:
+                project_name = accessible_name
+
+            server_settings = load_server_settings(project_name)
+
             if self._config_window is None or not hasattr(
                 self._config_window, "isVisible"
             ):
-                from ayon_local_config.ui.config_window import LocalConfigWindow
-
-                # Create window with complete UI
-                self._config_window = LocalConfigWindow(self.settings)
+                self._config_window = LocalConfigWindow(
+                    server_settings,
+                    project_name=project_name,
+                )
                 log.debug("Created new Local Config window")
             else:
-                log.debug("Reusing existing Local Config window")
+                self._config_window.refresh_for_project(
+                    project_name,
+                    server_settings,
+                )
+                log.debug("Refreshed existing Local Config window")
 
-            # Show window
             self._config_window.show()
             log.debug("Local Config window shown")
 

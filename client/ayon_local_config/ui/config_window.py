@@ -1,11 +1,13 @@
 # -*- coding: utf-8 -*-
 import os
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 from qtpy import QtCore, QtGui, QtWidgets
 
 from ayon_local_config.logger import log
 from ayon_local_config.plugin import execute_action_by_name
+from ayon_local_config.project_context import pick_accessible_project_name
+from ayon_local_config.settings_loader import load_server_settings, schema_fingerprint
 from ayon_local_config.storage import LocalConfigStorage
 from ayon_local_config.style import get_objected_colors, load_stylesheet
 
@@ -935,17 +937,22 @@ class ConfigGroupWidget(QtWidgets.QWidget):
 class LocalConfigWindow(QtWidgets.QWidget):
     """Main window for local configuration"""
 
-    def __init__(self, settings: Dict[str, Any], parent=None):
+    def __init__(
+        self,
+        settings: Dict[str, Any],
+        project_name: str = None,
+        parent=None,
+    ):
         super().__init__(parent)
 
         self.settings = settings
-        self.storage = LocalConfigStorage()
+        self.storage = LocalConfigStorage(project_name=project_name)
+        self._schema_fingerprint = schema_fingerprint(settings)
+        self._project_selector_widget = None
+        self._footer_widget = None
+        self._full_ui_built = False
 
-        # Set window properties immediately (canonical Qt approach)
-        project_name = self.storage.project_name
-        menu_item_name = self.settings.get("menu_item_name", "User Config")
-        title = f"{menu_item_name} - {project_name}" if project_name else menu_item_name
-        self.setWindowTitle(title)
+        self._update_window_title()
         # Minimum size will be calculated based on content after UI is built
         self.resize(900, 1031)
         self.move(830, 150)
@@ -955,6 +962,92 @@ class LocalConfigWindow(QtWidgets.QWidget):
 
         # Defer full UI building until after window is shown
         QtCore.QTimer.singleShot(100, self._build_full_ui)
+
+    def refresh_for_project(self, project_name: str, server_settings: Dict[str, Any]):
+        """Refresh server schema and local values for ``project_name``."""
+        if not self._full_ui_built:
+            self.settings = server_settings
+            self.storage = LocalConfigStorage(project_name=project_name)
+            self._schema_fingerprint = schema_fingerprint(server_settings)
+            self._update_window_title()
+            return
+
+        self._sync_project(project_name, server_settings)
+
+    def _content_insert_index(self, layout) -> int:
+        if self._footer_widget is not None:
+            return layout.indexOf(self._footer_widget)
+        return layout.count()
+
+    def _update_window_title(self):
+        project_name = self.storage.project_name
+        menu_item_name = self.settings.get("menu_item_name", "User Config")
+        title = (
+            f"{menu_item_name} - {project_name}"
+            if project_name
+            else menu_item_name
+        )
+        self.setWindowTitle(title)
+
+    def _apply_server_settings(self, server_settings: Dict[str, Any]):
+        """Apply project-scoped server schema; rebuild UI when shape changes."""
+        old_fingerprint = self._schema_fingerprint
+        old_show_selector = self.settings.get("show_project_selector", True)
+
+        self.settings = server_settings
+        self._schema_fingerprint = schema_fingerprint(server_settings)
+        new_show_selector = self.settings.get("show_project_selector", True)
+
+        self._update_window_title()
+
+        schema_changed = self._schema_fingerprint != old_fingerprint
+        selector_changed = new_show_selector != old_show_selector
+        if schema_changed or selector_changed:
+            self._rebuild_content_area()
+
+    def _rebuild_content_area(self):
+        """Rebuild project selector and tabs from current server schema."""
+        layout = self.layout()
+        if layout is None:
+            return
+
+        if self._project_selector_widget is not None:
+            layout.removeWidget(self._project_selector_widget)
+            self._project_selector_widget.deleteLater()
+            self._project_selector_widget = None
+            self.project_combo = None
+
+        if hasattr(self, "tab_widget") and self.tab_widget is not None:
+            layout.removeWidget(self.tab_widget)
+            self.tab_widget.deleteLater()
+            self.tab_widget = None
+
+        self._build_content_widgets(layout)
+
+    def _build_content_widgets(self, layout):
+        """Create project selector (optional) and tab groups from server schema."""
+        insert_at = self._content_insert_index(layout)
+
+        if self.settings.get("show_project_selector", True):
+            self._create_project_selector(layout, insert_at)
+            if self._project_selector_widget is not None:
+                insert_at = layout.indexOf(self._project_selector_widget) + 1
+
+        self.tab_widget = QtWidgets.QTabWidget()
+
+        log.debug(f"Settings structure: {self.settings}")
+        groups = self.settings.get("tab_groups", [])
+        log.debug(f"Found {len(groups)} groups")
+
+        for group in groups:
+            if not group.get("enabled", True):
+                continue
+
+            title = group.get("name", "Untitled Group")
+            group_widget = ConfigGroupWidget(group, self.storage)
+            self.tab_widget.addTab(group_widget, title)
+
+        layout.insertWidget(insert_at, self.tab_widget)
 
     def _create_minimal_ui(self):
         """Create minimal UI with just a loading indicator"""
@@ -999,34 +1092,8 @@ class LocalConfigWindow(QtWidgets.QWidget):
 
     def _build_ui(self):
         """Build UI directly in this widget"""
-        # Use the existing layout
         layout = self.layout()
-
-        # Add project selector if enabled
-        if self.settings.get("show_project_selector", True):
-            self._create_project_selector(layout)
-
-        # Create tab widget
-        self.tab_widget = QtWidgets.QTabWidget()
-
-        # Add tabs for each enabled group
-        log.debug(f"Settings structure: {self.settings}")
-        groups = self.settings.get("tab_groups", [])
-        log.debug(f"Found {len(groups)} groups")
-
-        for group in groups:
-            if not group.get("enabled", True):
-                continue
-
-            title = group.get("name", "Untitled Group")
-
-            # Create group widget
-            group_widget = ConfigGroupWidget(group, self.storage)
-
-            # Add to tab widget
-            self.tab_widget.addTab(group_widget, title)
-
-        layout.addWidget(self.tab_widget)
+        self._build_content_widgets(layout)
 
         # Create footer with status bar and buttons
         footer_widget = QtWidgets.QWidget()
@@ -1053,7 +1120,9 @@ class LocalConfigWindow(QtWidgets.QWidget):
         close_button.clicked.connect(self.close)
         footer_layout.addWidget(close_button)
 
+        self._footer_widget = footer_widget
         layout.addWidget(footer_widget)
+        self._full_ui_built = True
 
         # Apply AYON styling
         from ayon_local_config.style import clear_stylesheet_cache
@@ -1391,7 +1460,7 @@ class LocalConfigWindow(QtWidgets.QWidget):
 
         return config_data
 
-    def _create_project_selector(self, layout):
+    def _create_project_selector(self, layout, insert_index=None):
         """Create project selector widget"""
         try:
             # Create project selector container
@@ -1421,18 +1490,31 @@ class LocalConfigWindow(QtWidgets.QWidget):
 
             # Set current project - try last selected first, then current, then first available
             last_selected = self.storage.get_last_selected_project()
-            current_project = self.storage.project_name
+            current_project = pick_accessible_project_name(
+                self.storage.project_name,
+                available_projects,
+            )
 
             selected_project = None
-            if last_selected and last_selected in available_projects:
-                selected_project = last_selected
-                log.debug(f"Using last selected project: {last_selected}")
-            elif current_project in available_projects:
+            if last_selected:
+                selected_project = pick_accessible_project_name(
+                    last_selected,
+                    available_projects,
+                )
+                if selected_project:
+                    log.debug(
+                        "Using last selected project: %s",
+                        selected_project,
+                    )
+            if not selected_project and current_project:
                 selected_project = current_project
-                log.debug(f"Using current project: {current_project}")
-            elif available_projects:
+                log.debug("Using current project: %s", current_project)
+            elif not selected_project and available_projects:
                 selected_project = available_projects[0]
-                log.debug(f"Using first available project: {available_projects[0]}")
+                log.debug(
+                    "Using first available project: %s",
+                    available_projects[0],
+                )
 
             if selected_project:
                 self.project_combo.setCurrentText(selected_project)
@@ -1452,7 +1534,11 @@ class LocalConfigWindow(QtWidgets.QWidget):
             project_selector_layout.addStretch()
 
             # Add to main layout
-            layout.addWidget(project_selector_widget)
+            if insert_index is None:
+                layout.addWidget(project_selector_widget)
+            else:
+                layout.insertWidget(insert_index, project_selector_widget)
+            self._project_selector_widget = project_selector_widget
 
             log.debug(
                 f"Created project selector with {len(available_projects)} projects"
@@ -1464,47 +1550,65 @@ class LocalConfigWindow(QtWidgets.QWidget):
     def _on_project_changed(self, project_name):
         """Handle project selection change"""
         try:
-            log.debug(f"Project changed to: {project_name}")
+            available_projects = self.storage.get_available_projects()
+            accessible_name = pick_accessible_project_name(
+                project_name,
+                available_projects,
+            )
+            if not accessible_name:
+                log.warning(
+                    "Ignoring project change to inaccessible project: %s",
+                    project_name,
+                )
+                return
 
-            # Update storage project name
-            self.storage.project_name = project_name
+            log.debug("Project changed to: %s", accessible_name)
 
             # Save as last selected project
-            self.storage.set_last_selected_project(project_name)
+            self.storage.set_last_selected_project(accessible_name)
 
-            # Update window title
-            menu_item_name = self.settings.get("menu_item_name", "User Config")
-            self.setWindowTitle(f"{menu_item_name} - {project_name}")
+            # Reload server schema, tabs, local values, and env actions
+            self._reload_settings_for_project(accessible_name)
 
-            # Note: Project-specific environment variables are now handled by AYON Tools Environment Variables
-
-            # Reload all values for the new project
-            self._reload_settings_for_project(project_name)
-
-            log.debug(f"Switched to project: {project_name}")
+            log.debug("Switched to project: %s", accessible_name)
 
         except Exception as e:
             log.error(f"Failed to change project: {e}")
 
     def _reload_settings_for_project(self, project_name):
-        """Reload settings for a specific project"""
+        """Reload server schema and local values for a specific project."""
+        self._sync_project(project_name, None)
+
+    def _sync_project(
+        self,
+        project_name: str,
+        server_settings: Optional[Dict[str, Any]],
+    ):
+        """Apply server schema and reload local values for ``project_name``."""
         try:
             if hasattr(self, "status_bar"):
                 self.status_bar.setText(f"Loading settings for {project_name}...")
 
-            # Update storage project name first
             self.storage.project_name = project_name
 
-            # Load config for the new project
+            if server_settings is None:
+                server_settings = load_server_settings(project_name)
+            self._apply_server_settings(server_settings)
+
             config = self.storage.load_config()
 
-            # Update all tab widgets with the new project's settings
+            if not hasattr(self, "tab_widget") or self.tab_widget is None:
+                return
+
             for i in range(self.tab_widget.count()):
                 tab_widget = self.tab_widget.widget(i)
                 if hasattr(tab_widget, "load_values_from_config"):
                     tab_widget.load_values_from_config(config)
                 elif hasattr(tab_widget, "load_values"):
                     tab_widget.load_values()
+
+            self._trigger_actions_for_existing_values(config)
+            self._set_content_based_minimum_size()
 
             if hasattr(self, "status_bar"):
                 self.status_bar.setText(f"Loaded settings for {project_name}")
