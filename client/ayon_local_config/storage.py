@@ -5,7 +5,10 @@ import shutil
 from typing import Any, Dict, List, Optional
 
 from ayon_local_config.logger import log
-from ayon_core.pipeline import get_current_project_name
+from ayon_local_config.project_context import (
+    get_user_accessible_project_names,
+    resolve_tray_project_name,
+)
 
 
 def _stable_localconfig_paths():
@@ -55,20 +58,16 @@ class LocalConfigStorage:
     """
 
     def __init__(self, project_name: str = None):
-        # Get project name with fallback for Local Config addon
         if project_name:
             self.project_name = project_name
         else:
-            try:
-                self.project_name = get_current_project_name()
-                # If get_current_project_name returns None or empty, use a default
-                if not self.project_name:
-                    self.project_name = "default"
-                    log.debug("No active AYON project, using 'default' for Local Config storage")
-            except Exception as e:
-                log.warning(f"Failed to get current project name: {e}, using 'default'")
+            self.project_name = resolve_tray_project_name()
+            if not self.project_name:
                 self.project_name = "default"
-        
+                log.debug(
+                    "No active AYON project, using 'default' for Local Config storage"
+                )
+
         # Initialize config directory (stable profile path)
         self._update_config_paths()
         self._ensure_config_dir()
@@ -322,62 +321,24 @@ class LocalConfigStorage:
         return self.set_group_config(group_id, default_values)
 
     def get_available_projects(self) -> List[str]:
-        """Get list of all available projects from AYON server and local config"""
+        """Get projects the signed-in user may select in Local Config."""
         try:
-            # First try to get projects from AYON server
-            ayon_projects = self._get_ayon_projects()
-            
-            # Get projects from local config
-            config = self.load_config()
-            local_projects = list(config.get("projects", {}).keys())
-            
-            # Combine and deduplicate
-            all_projects = list(set(ayon_projects + local_projects))
-            
-            # Remove "default" from the list
-            if "default" in all_projects:
-                all_projects.remove("default")
-            
-            # Sort alphabetically
-            all_projects.sort()
-            
-            log.debug(f"Found {len(all_projects)} available projects: {all_projects}")
-            return all_projects
-            
-        except Exception as e:
-            log.warning(f"Failed to get AYON projects, using local config only: {e}")
-            # Fallback to local config only
-            config = self.load_config()
-            local_projects = list(config.get("projects", {}).keys())
-            # Remove "default" from fallback list too
-            if "default" in local_projects:
-                local_projects.remove("default")
-            return local_projects
-    
-    def _get_ayon_projects(self) -> List[str]:
-        """Get projects from AYON server using the API"""
-        try:
-            # Import AYON API
-            from ayon_api import get_server_api_connection
-            
-            # Get server connection
-            api = get_server_api_connection()
-            if not api or not api.is_server_available:
-                log.debug("AYON server not available, skipping project discovery")
-                return []
-            
-            # Get projects from server
-            projects = api.get_projects()
-            project_names = [project["name"] for project in projects]
-            
-            log.debug(f"Discovered {len(project_names)} projects from AYON server: {project_names}")
-            return project_names
-            
-        except ImportError:
-            log.debug("AYON API not available, skipping server project discovery")
+            accessible_projects = get_user_accessible_project_names()
+            if accessible_projects:
+                log.debug(
+                    "Found %d user-accessible projects: %s",
+                    len(accessible_projects),
+                    accessible_projects,
+                )
+                return accessible_projects
+
+            log.warning(
+                "No user-accessible projects resolved; project selector will be empty."
+            )
             return []
+
         except Exception as e:
-            log.warning(f"Failed to get projects from AYON server: {e}")
+            log.warning(f"Failed to get user-accessible projects: {e}")
             return []
 
     def get_project_config(self, project_name: str) -> Dict[str, Any]:
