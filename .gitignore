@@ -214,3 +214,25 @@ __marimo__/
 
 # ayon
 /package
+
+# >>> enforce_ignores_for_git_project.py - managed block (do not delete header/footer)
+
+# VSCode
+**/.vscode
+**/.history
+**/.venv
+
+# AYON
+**/package
+
+# Python
+*.pyc
+*.pyo
+*.pyd
+
+# Node
+node_modules/
+
+# Tooling
+/.ruff_cache
+# <<< enforce_ignores_for_git_project.py
