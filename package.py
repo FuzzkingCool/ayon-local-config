@@ -1,6 +1,6 @@
 name = "local_config"
 title = "Local Config"
-version = "0.5.0"
+version = "0.5.1"
 client_dir = "ayon_local_config"
 
 ayon_server_version = ">=1.1.2"
