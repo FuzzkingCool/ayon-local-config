@@ -28,7 +28,7 @@ class SetRenderPathAction(LocalConfigCompatibleAction):
         try:
             # Get the local render path from config data
             user_settings = config_data.get("user_settings", {})
-            local_render_path = user_settings.get("set_default_localrender_path")
+            local_render_path = user_settings.get("set_default_local_render_path")
 
             if not local_render_path:
                 log.warning("No Local Render Path found in configuration")
@@ -38,15 +38,11 @@ class SetRenderPathAction(LocalConfigCompatibleAction):
             local_render_path = os.path.expanduser(local_render_path)
             local_render_path = os.path.normpath(local_render_path)
 
-            # Check if the path exists
             if not os.path.exists(local_render_path):
-                QtWidgets.QMessageBox.warning(
-                    None,
-                    "Path Not Found",
-                    f"The local render path does not exist:\n{local_render_path}\n\n"
-                    "Please check the path and try again.",
+                log.warning(
+                    "Local render path does not exist yet: %s",
+                    local_render_path,
                 )
-                return
 
             # Register environment variable with the registry
             self.register_environment_variable(

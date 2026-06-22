@@ -98,6 +98,12 @@ class LocalConfigAddon(AYONAddon, ITrayAddon):
                 log.debug("Initializing AYON sandbox environment variable from settings")
                 execute_action_by_name("SetAyonSandboxPathAction", config_data)
 
+            if "set_default_local_render_path" in user_settings:
+                log.debug(
+                    "Initializing local render path environment variable from settings"
+                )
+                execute_action_by_name("SetRenderPathAction", config_data)
+
             # Execute Unity project action if Unity project path is set
             if "unity_project_path" in user_settings:
                 log.debug(
