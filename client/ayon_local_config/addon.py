@@ -102,7 +102,11 @@ class LocalConfigAddon(AYONAddon, ITrayAddon):
                 log.debug(
                     "Initializing local render path environment variable from settings"
                 )
-                execute_action_by_name("SetRenderPathAction", config_data)
+            else:
+                log.debug(
+                    "No local render path in settings; registering OS Pictures default"
+                )
+            execute_action_by_name("SetRenderPathAction", config_data)
 
             # Execute Unity project action if Unity project path is set
             if "unity_project_path" in user_settings:

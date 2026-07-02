@@ -40,8 +40,11 @@ DEFAULT_VALUES = {
                 },
             
                 {
-                    "tooltip": "",
-                    "default_value": "~/Pictures/Renders",
+                    "tooltip": (
+                        "Local render output folder. Leave empty to use your OS "
+                        "Pictures folder plus Renders (resolved at launch)."
+                    ),
+                    "default_value": "",
                     "is_path": True,
                     "path_type": "folder",
                     "enum_options": [],
