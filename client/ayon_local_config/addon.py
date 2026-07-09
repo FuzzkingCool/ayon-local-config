@@ -1,15 +1,31 @@
 # -*- coding: utf-8 -*-
 import os
+import queue
+import threading
 import traceback
 
 from ayon_core.addon import AYONAddon, ITrayAddon
+from ayon_core.tools.tray.launch_progress import (
+    clear_launch_progress_queue,
+    report_launch_progress,
+    set_launch_progress_queue,
+)
+from ayon_core.tools.tray.ui.tray_menu_icons import (
+    apply_tray_menu_icon,
+    create_tray_icon_action,
+)
+from ayon_core.tools.utils.lib import get_qta_icon_by_name_and_color
 from qtpy import QtGui, QtWidgets
 
 from ayon_local_config.environment_registry import (
     initialize_environment_registry,
 )
 from ayon_local_config.logger import log
-from ayon_local_config.storage import LocalConfigStorage
+from ayon_local_config.storage import (
+    LocalConfigStorage,
+    _stable_localconfig_paths,
+    read_last_workfile_session,
+)
 from ayon_local_config.version import __version__
 
 
@@ -28,7 +44,18 @@ class LocalConfigAddon(AYONAddon, ITrayAddon):
     _config_window = None
     _tray_icon = None
     _action = None
+    _resume_action = None
     _environment_registry = None
+
+    def get_global_environments(self):
+        """Expose the local config directory so PreLaunchHooks can find it.
+
+        ``AYON_LOCAL_CONFIG_DIR`` is consumed by
+        ``RecordLastWorkfileSession`` in ayon-core to write the session
+        record without a hard dependency on this addon.
+        """
+        config_dir, _ = _stable_localconfig_paths()
+        return {"AYON_LOCAL_CONFIG_DIR": config_dir}
 
     def initialize(self, settings):
         """Initialization of addon."""
@@ -137,13 +164,86 @@ class LocalConfigAddon(AYONAddon, ITrayAddon):
         if not self.settings.get("enabled", False):
             return
 
-        # Get the menu item name from settings
-        menu_item_name = self.settings.get("menu_item_name", "User Config")
+        self._resume_action = create_tray_icon_action(tray_menu, "Resume Work")
+        apply_tray_menu_icon(
+            self._resume_action,
+            get_qta_icon_by_name_and_color("paint-brush", "#555555"),
+        )
+        self._resume_action.triggered.connect(self._trigger_resume_work)
+        self._resume_action.setEnabled(
+            read_last_workfile_session() is not None
+        )
+        tray_menu.aboutToShow.connect(
+            lambda: self._resume_action.setEnabled(
+                read_last_workfile_session() is not None
+            )
+        )
+        tray_menu.addAction(self._resume_action)
+        tray_menu.addSeparator()
 
-        # Create a single action instead of a submenu
+        menu_item_name = self.settings.get("menu_item_name", "User Config")
         self._action = QtWidgets.QAction(menu_item_name, tray_menu)
         self._action.triggered.connect(self.show_config_window)
         tray_menu.addAction(self._action)
+
+    def _trigger_resume_work(self):
+        try:
+            self._do_resume_work()
+        except Exception:
+            log.error("Resume Work failed", exc_info=True)
+
+    def _do_resume_work(self):
+        session = read_last_workfile_session()
+        if not session:
+            log.debug("Resume Work: no session file found, aborting")
+            return
+
+        apps_addon = self.manager.get_enabled_addon("applications")
+        if apps_addon is None:
+            self.show_tray_message(
+                "Resume Work", "Applications addon is unavailable."
+            )
+            return
+
+        app_label = session.get("app_name", "application")
+        log.debug("Resume Work: launching %s", app_label)
+
+        progress_queue = queue.Queue()
+        set_launch_progress_queue(progress_queue)
+        report_launch_progress(10, f"Launching {app_label}...")
+
+        from ayon_core.tools.tray.ui.progress_dialog import (
+            CandyStripeProgressBar,
+            WorkfileProgressDialog,
+        )
+
+        dialog = WorkfileProgressDialog(
+            parent=None,
+            title="Resume Work",
+            bar_only=False,
+            initial_message=f"Launching {app_label}...",
+            progress_bar_class=CandyStripeProgressBar,
+        )
+        dialog.start_polling(progress_queue)
+        dialog.show()
+
+        def _launch():
+            try:
+                apps_addon.launch_application(
+                    app_name=session["app_name"],
+                    project_name=session["project_name"],
+                    folder_path=session["folder_path"],
+                    task_name=session["task_name"],
+                    workfile_path=session.get("workfile_path") or None,
+                )
+                progress_queue.put((100, "Launched"))
+            except Exception:
+                log.error("Resume Work launch failed", exc_info=True)
+                progress_queue.put((-1, "Launch failed"))
+            finally:
+                clear_launch_progress_queue()
+
+        threading.Thread(target=_launch, daemon=True).start()
 
     def get_icon(self):
         # Use a simple gear icon or similar for config
