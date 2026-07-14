@@ -198,6 +198,21 @@ class LocalConfigAddon(AYONAddon, ITrayAddon):
         except Exception:
             log.error("Resume Work failed", exc_info=True)
 
+    def _resolve_resume_app_name(self, session, apps_addon):
+        app_name = session.get("app_name")
+        if app_name:
+            return app_name
+
+        host_name = session.get("host_name")
+        if not host_name:
+            return None
+
+        apps_manager = apps_addon.get_applications_manager()
+        app = apps_manager.find_latest_available_variant_for_group(host_name)
+        if app is None:
+            return None
+        return app.full_name
+
     def _do_resume_work(self):
         session = read_last_workfile_session()
         if not session:
@@ -211,7 +226,15 @@ class LocalConfigAddon(AYONAddon, ITrayAddon):
             )
             return
 
-        app_label = session.get("app_name", "application")
+        app_name = self._resolve_resume_app_name(session, apps_addon)
+        if not app_name:
+            self.show_tray_message(
+                "Resume Work",
+                "Could not resolve application from saved session.",
+            )
+            return
+
+        app_label = app_name
         log.debug("Resume Work: launching %s", app_label)
 
         progress_queue = queue.Queue()
@@ -236,7 +259,7 @@ class LocalConfigAddon(AYONAddon, ITrayAddon):
         def _launch():
             try:
                 apps_addon.launch_application(
-                    app_name=session["app_name"],
+                    app_name=app_name,
                     project_name=session["project_name"],
                     folder_path=session["folder_path"],
                     task_name=session["task_name"],
