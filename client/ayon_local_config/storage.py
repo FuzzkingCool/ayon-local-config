@@ -17,6 +17,56 @@ def _stable_localconfig_paths():
     return config_dir, os.path.join(config_dir, "localconfig.json")
 
 
+def _session_file_path() -> str:
+    """Return the last_workfile_session.json path.
+
+    Reads ``AYON_LOCAL_CONFIG_DIR`` when set (injected at tray init), falling
+    back to the stable profile directory so the path is always deterministic.
+    """
+    config_dir = os.environ.get(
+        "AYON_LOCAL_CONFIG_DIR",
+        os.path.join(os.path.expanduser("~"), ".ayon", "settings"),
+    )
+    return os.path.join(config_dir, "last_workfile_session.json")
+
+
+def read_last_workfile_session() -> Optional[Dict[str, Any]]:
+    """Return the last workfile session dict, or None if absent/unreadable."""
+    path = _session_file_path()
+    if not os.path.exists(path):
+        return None
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except (json.JSONDecodeError, OSError):
+        return None
+
+
+def format_resume_work_tooltip(session: Optional[Dict[str, Any]]) -> str:
+    """Build tray tooltip text from a last-workfile session record."""
+    if not session:
+        return ""
+
+    context_parts = [
+        part
+        for part in (
+            session.get("project_name") or "",
+            (session.get("folder_path") or "").strip("/"),
+            session.get("task_name") or "",
+        )
+        if part
+    ]
+    workfile_path = session.get("workfile_path") or ""
+    filename = os.path.basename(workfile_path) if workfile_path else ""
+
+    lines = []
+    if context_parts:
+        lines.append(" / ".join(context_parts))
+    if filename:
+        lines.append(filename)
+    return "\n".join(lines)
+
+
 def _projects_effectively_empty(config: Dict[str, Any]) -> bool:
     """True if projects is missing or every project entry is an empty dict."""
     projects = config.get("projects")
