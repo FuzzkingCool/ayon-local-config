@@ -5,6 +5,7 @@ import threading
 import traceback
 
 from ayon_core.addon import AYONAddon, ITrayAddon
+from ayon_core.style import AYON_COLOR
 from ayon_core.tools.tray.launch_progress import (
     clear_launch_progress_queue,
     report_launch_progress,
@@ -12,7 +13,9 @@ from ayon_core.tools.tray.launch_progress import (
 )
 from ayon_core.tools.tray.ui.tray_menu_icons import (
     apply_tray_menu_icon,
+    apply_tray_menu_tooltip,
     create_tray_icon_action,
+    install_tray_menu_tooltips,
 )
 from ayon_core.tools.utils.lib import get_qta_icon_by_name_and_color
 from qtpy import QtGui, QtWidgets
@@ -24,6 +27,7 @@ from ayon_local_config.logger import log
 from ayon_local_config.storage import (
     LocalConfigStorage,
     _stable_localconfig_paths,
+    format_resume_work_tooltip,
     read_last_workfile_session,
 )
 from ayon_local_config.version import __version__
@@ -167,24 +171,26 @@ class LocalConfigAddon(AYONAddon, ITrayAddon):
         self._resume_action = create_tray_icon_action(tray_menu, "Resume Work")
         apply_tray_menu_icon(
             self._resume_action,
-            get_qta_icon_by_name_and_color("paint-brush", "#555555"),
+            get_qta_icon_by_name_and_color("paint-brush", AYON_COLOR),
         )
         self._resume_action.triggered.connect(self._trigger_resume_work)
-        self._resume_action.setEnabled(
-            read_last_workfile_session() is not None
-        )
-        tray_menu.aboutToShow.connect(
-            lambda: self._resume_action.setEnabled(
-                read_last_workfile_session() is not None
-            )
-        )
+        install_tray_menu_tooltips(tray_menu)
+        tray_menu.aboutToShow.connect(self._refresh_resume_action)
         tray_menu.addAction(self._resume_action)
+        self._refresh_resume_action()
         tray_menu.addSeparator()
 
         menu_item_name = self.settings.get("menu_item_name", "User Config")
         self._action = QtWidgets.QAction(menu_item_name, tray_menu)
         self._action.triggered.connect(self.show_config_window)
         tray_menu.addAction(self._action)
+
+    def _refresh_resume_action(self):
+        session = read_last_workfile_session()
+        enabled = session is not None
+        self._resume_action.setEnabled(enabled)
+        tooltip = format_resume_work_tooltip(session) if enabled else ""
+        apply_tray_menu_tooltip(self._resume_action, tooltip)
 
     def _trigger_resume_work(self):
         try:

@@ -42,6 +42,31 @@ def read_last_workfile_session() -> Optional[Dict[str, Any]]:
         return None
 
 
+def format_resume_work_tooltip(session: Optional[Dict[str, Any]]) -> str:
+    """Build tray tooltip text from a last-workfile session record."""
+    if not session:
+        return ""
+
+    context_parts = [
+        part
+        for part in (
+            session.get("project_name") or "",
+            (session.get("folder_path") or "").strip("/"),
+            session.get("task_name") or "",
+        )
+        if part
+    ]
+    workfile_path = session.get("workfile_path") or ""
+    filename = os.path.basename(workfile_path) if workfile_path else ""
+
+    lines = []
+    if context_parts:
+        lines.append(" / ".join(context_parts))
+    if filename:
+        lines.append(filename)
+    return "\n".join(lines)
+
+
 def _projects_effectively_empty(config: Dict[str, Any]) -> bool:
     """True if projects is missing or every project entry is an empty dict."""
     projects = config.get("projects")
