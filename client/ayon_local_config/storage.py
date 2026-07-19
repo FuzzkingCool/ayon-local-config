@@ -17,17 +17,20 @@ def _stable_localconfig_paths():
     return config_dir, os.path.join(config_dir, "localconfig.json")
 
 
+def _session_config_dir() -> str:
+    return os.environ.get(
+        "AYON_LOCAL_CONFIG_DIR",
+        os.path.join(os.path.expanduser("~"), ".ayon", "settings"),
+    )
+
+
 def _session_file_path() -> str:
     """Return the last_workfile_session.json path.
 
     Reads ``AYON_LOCAL_CONFIG_DIR`` when set (injected at tray init), falling
     back to the stable profile directory so the path is always deterministic.
     """
-    config_dir = os.environ.get(
-        "AYON_LOCAL_CONFIG_DIR",
-        os.path.join(os.path.expanduser("~"), ".ayon", "settings"),
-    )
-    return os.path.join(config_dir, "last_workfile_session.json")
+    return os.path.join(_session_config_dir(), "last_workfile_session.json")
 
 
 def read_last_workfile_session() -> Optional[Dict[str, Any]]:
@@ -65,6 +68,100 @@ def format_resume_work_tooltip(session: Optional[Dict[str, Any]]) -> str:
     if filename:
         lines.append(filename)
     return "\n".join(lines)
+
+
+RECENT_WORKFILE_COUNT_DEFAULT = 5
+
+
+def recent_workfile_count() -> int:
+    """Return max recent workfile entries (default 5, env override)."""
+    raw = os.environ.get("AYON_RECENT_FILES_COUNT", "").strip()
+    if not raw:
+        return RECENT_WORKFILE_COUNT_DEFAULT
+    try:
+        count = int(raw)
+    except ValueError:
+        log.warning(
+            "Invalid AYON_RECENT_FILES_COUNT=%r; using default %d",
+            raw,
+            RECENT_WORKFILE_COUNT_DEFAULT,
+        )
+        return RECENT_WORKFILE_COUNT_DEFAULT
+    return max(1, count)
+
+
+def _recent_workfile_sessions_path() -> str:
+    return os.path.join(_session_config_dir(), "recent_workfile_sessions.json")
+
+
+def _normalize_workfile_path(workfile_path: str) -> str:
+    return os.path.normcase(os.path.normpath(workfile_path))
+
+
+def read_recent_workfile_sessions() -> List[Dict[str, Any]]:
+    """Return recent workfile session dicts, most recent first."""
+    path = _recent_workfile_sessions_path()
+    if not os.path.exists(path):
+        return []
+    try:
+        with open(path, "r", encoding="utf-8") as handle:
+            data = json.load(handle)
+    except (json.JSONDecodeError, OSError, TypeError):
+        return []
+
+    if not isinstance(data, list):
+        return []
+
+    sessions = [entry for entry in data if isinstance(entry, dict)]
+    return sessions[: recent_workfile_count()]
+
+
+def touch_recent_workfile_session(session: Optional[Dict[str, Any]]) -> bool:
+    """Prepend a session to recent workfiles, deduping by workfile path."""
+    if not session:
+        return False
+
+    workfile_path = session.get("workfile_path") or ""
+    if not workfile_path:
+        return False
+
+    normalized_path = _normalize_workfile_path(workfile_path)
+    stored_session = dict(session)
+    stored_session["workfile_path"] = workfile_path
+
+    sessions = read_recent_workfile_sessions()
+    sessions = [
+        entry
+        for entry in sessions
+        if _normalize_workfile_path(entry.get("workfile_path") or "")
+        != normalized_path
+    ]
+    sessions.insert(0, stored_session)
+    sessions = sessions[: recent_workfile_count()]
+
+    config_dir = _session_config_dir()
+    path = _recent_workfile_sessions_path()
+    try:
+        os.makedirs(config_dir, exist_ok=True)
+        with open(path, "w", encoding="utf-8") as handle:
+            json.dump(sessions, handle, indent=2)
+        log.debug("Updated recent workfile sessions at %s", path)
+        return True
+    except OSError as exc:
+        log.warning("Could not write recent workfile sessions to %s: %s", path, exc)
+        return False
+
+
+def format_recent_work_menu_label(session: Dict[str, Any]) -> str:
+    """Build a short tray submenu label for a recent workfile session."""
+    workfile_path = session.get("workfile_path") or ""
+    filename = (
+        os.path.basename(workfile_path) if workfile_path else "Unknown workfile"
+    )
+    project_name = session.get("project_name") or ""
+    if project_name:
+        return f"{project_name} / {filename}"
+    return filename
 
 
 def _projects_effectively_empty(config: Dict[str, Any]) -> bool:

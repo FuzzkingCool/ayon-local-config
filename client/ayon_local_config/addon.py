@@ -27,8 +27,11 @@ from ayon_local_config.logger import log
 from ayon_local_config.storage import (
     LocalConfigStorage,
     _stable_localconfig_paths,
+    format_recent_work_menu_label,
     format_resume_work_tooltip,
     read_last_workfile_session,
+    read_recent_workfile_sessions,
+    touch_recent_workfile_session,
 )
 from ayon_local_config.version import __version__
 
@@ -49,6 +52,7 @@ class LocalConfigAddon(AYONAddon, ITrayAddon):
     _tray_icon = None
     _action = None
     _resume_action = None
+    _recent_menu = None
     _environment_registry = None
 
     def get_global_environments(self):
@@ -175,9 +179,17 @@ class LocalConfigAddon(AYONAddon, ITrayAddon):
         )
         self._resume_action.triggered.connect(self._trigger_resume_work)
         install_tray_menu_tooltips(tray_menu)
-        tray_menu.aboutToShow.connect(self._refresh_resume_action)
         tray_menu.addAction(self._resume_action)
-        self._refresh_resume_action()
+
+        self._recent_menu = QtWidgets.QMenu("Recent Work", tray_menu)
+        apply_tray_menu_icon(
+            self._recent_menu.menuAction(),
+            get_qta_icon_by_name_and_color("clock", AYON_COLOR),
+        )
+        tray_menu.addMenu(self._recent_menu)
+
+        tray_menu.aboutToShow.connect(self._refresh_tray_work_actions)
+        self._refresh_tray_work_actions()
         tray_menu.addSeparator()
 
         menu_item_name = self.settings.get("menu_item_name", "User Config")
@@ -185,18 +197,47 @@ class LocalConfigAddon(AYONAddon, ITrayAddon):
         self._action.triggered.connect(self.show_config_window)
         tray_menu.addAction(self._action)
 
-    def _refresh_resume_action(self):
-        session = read_last_workfile_session()
-        enabled = session is not None
+    def _refresh_tray_work_actions(self):
+        last_session = read_last_workfile_session()
+        if last_session and last_session.get("workfile_path"):
+            touch_recent_workfile_session(last_session)
+
+        enabled = last_session is not None
         self._resume_action.setEnabled(enabled)
-        tooltip = format_resume_work_tooltip(session) if enabled else ""
+        tooltip = format_resume_work_tooltip(last_session) if enabled else ""
         apply_tray_menu_tooltip(self._resume_action, tooltip)
+
+        self._recent_menu.clear()
+        recent_sessions = read_recent_workfile_sessions()
+        if not recent_sessions:
+            placeholder = self._recent_menu.addAction("(No recent workfiles)")
+            placeholder.setEnabled(False)
+            return
+
+        for session in recent_sessions:
+            label = format_recent_work_menu_label(session)
+            action = create_tray_icon_action(self._recent_menu, label)
+            apply_tray_menu_tooltip(
+                action,
+                format_resume_work_tooltip(session),
+            )
+            action.triggered.connect(
+                lambda checked=False, entry=session: self._trigger_recent_work(entry)
+            )
+            self._recent_menu.addAction(action)
 
     def _trigger_resume_work(self):
         try:
             self._do_resume_work()
         except Exception:
             log.error("Resume Work failed", exc_info=True)
+
+    def _trigger_recent_work(self, session):
+        try:
+            touch_recent_workfile_session(session)
+            self._launch_workfile_session(session, title="Recent Work")
+        except Exception:
+            log.error("Recent Work failed", exc_info=True)
 
     def _resolve_resume_app_name(self, session, apps_addon):
         app_name = session.get("app_name")
@@ -219,23 +260,27 @@ class LocalConfigAddon(AYONAddon, ITrayAddon):
             log.debug("Resume Work: no session file found, aborting")
             return
 
+        touch_recent_workfile_session(session)
+        self._launch_workfile_session(session, title="Resume Work")
+
+    def _launch_workfile_session(self, session, *, title):
         apps_addon = self.manager.get_enabled_addon("applications")
         if apps_addon is None:
             self.show_tray_message(
-                "Resume Work", "Applications addon is unavailable."
+                title, "Applications addon is unavailable."
             )
             return
 
         app_name = self._resolve_resume_app_name(session, apps_addon)
         if not app_name:
             self.show_tray_message(
-                "Resume Work",
+                title,
                 "Could not resolve application from saved session.",
             )
             return
 
         app_label = app_name
-        log.debug("Resume Work: launching %s", app_label)
+        log.debug("%s: launching %s", title, app_label)
 
         progress_queue = queue.Queue()
         set_launch_progress_queue(progress_queue)
@@ -248,7 +293,7 @@ class LocalConfigAddon(AYONAddon, ITrayAddon):
 
         dialog = WorkfileProgressDialog(
             parent=None,
-            title="Resume Work",
+            title=title,
             bar_only=False,
             initial_message=f"Launching {app_label}...",
             progress_bar_class=CandyStripeProgressBar,
@@ -267,7 +312,7 @@ class LocalConfigAddon(AYONAddon, ITrayAddon):
                 )
                 progress_queue.put((100, "Launched"))
             except Exception:
-                log.error("Resume Work launch failed", exc_info=True)
+                log.error("%s launch failed", title, exc_info=True)
                 progress_queue.put((-1, "Launch failed"))
             finally:
                 clear_launch_progress_queue()
