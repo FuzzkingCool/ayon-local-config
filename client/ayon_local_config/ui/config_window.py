@@ -538,9 +538,6 @@ class ConfigGroupWidget(QtWidgets.QWidget):
                 setting_id = setting_label
             else:
                 setting_id = f"setting_{i}"
-            log.debug(
-                f"Generated setting_id: {setting_id} from label: {setting.get('label', '')}"
-            )
             setting_type = setting.get("type", "string")
 
             # Check if this is a vertical divider
@@ -688,7 +685,6 @@ class ConfigGroupWidget(QtWidgets.QWidget):
                 setting_type = setting_widget.setting_config.get("type")
             
             self.storage.set_setting_value(self.group_id, setting_id, value, setting_type)
-            log.debug(f"Saved setting {self.group_id}.{setting_id} = {value} (type: {setting_type})")
 
             # Check if this setting has an action to trigger
             setting_widget = self.setting_widgets.get(setting_id)
@@ -696,7 +692,6 @@ class ConfigGroupWidget(QtWidgets.QWidget):
                 action_name = setting_widget.setting_config.get("action_name")
                 # Get action data from setting config (same as buttons do)
                 action_data = setting_widget.setting_config.get("action_data", "")
-                log.debug(f"Setting {setting_id} has action_name: {action_name}, action_data: {action_data}")
                 if action_name:
                     # Get the full project config data for the action
                     full_config = self.storage.load_config()
@@ -711,9 +706,9 @@ class ConfigGroupWidget(QtWidgets.QWidget):
                                 if hasattr(tab_widget, "get_widget_values"):
                                     tab_values = tab_widget.get_widget_values()
                                     current_ui_values.update(tab_values)
-                        except Exception as e:
-                            log.debug(f"Could not get current UI values: {e}")
-                    
+                        except Exception:
+                            pass
+
                     # Merge saved config with current UI values
                     user_settings = project_config.get("user_settings", {}).copy()
                     user_settings.update(current_ui_values)
@@ -732,7 +727,6 @@ class ConfigGroupWidget(QtWidgets.QWidget):
 
     def _trigger_action(self, action_name: str, value):
         """Trigger an action when a setting value changes"""
-        log.debug(f"Triggering action: {action_name} with value: {value}")
         try:
             # Get the full project config data for the action
             full_config = self.storage.load_config()
@@ -747,10 +741,9 @@ class ConfigGroupWidget(QtWidgets.QWidget):
                         if hasattr(tab_widget, "get_widget_values"):
                             tab_values = tab_widget.get_widget_values()
                             current_ui_values.update(tab_values)
-                except Exception as e:
-                    log.debug(f"Could not get current UI values: {e}")
-                    # Continue with just saved config
-            
+                except Exception:
+                    pass
+
             # Merge saved config with current UI values (UI values take precedence)
             user_settings = project_config.get("user_settings", {}).copy()
             user_settings.update(current_ui_values)
@@ -767,11 +760,7 @@ class ConfigGroupWidget(QtWidgets.QWidget):
 
             success = execute_action_by_name(action_name, config_data, "")
 
-            if success:
-                log.debug(
-                    f"Successfully triggered action {action_name} on value change with value: {value}"
-                )
-            else:
+            if not success:
                 log.warning(f"Failed to trigger action {action_name} on value change")
 
         except Exception as e:
@@ -791,16 +780,12 @@ class ConfigGroupWidget(QtWidgets.QWidget):
 
     def _load_values_from_config_data(self, group_config):
         """Load values from group config data"""
-        log.debug(f"Loading values from config: {group_config}")
-        log.debug(f"Available widgets: {list(self.setting_widgets.keys())}")
-
         for setting_id, widget in self.setting_widgets.items():
             if setting_id in group_config:
                 # Prevent signal emission while programmatically setting values
                 setattr(widget, "_loading", True)
                 try:
                     widget.set_value(group_config[setting_id])
-                    log.debug(f"Set {setting_id} to: {group_config[setting_id]}")
                 finally:
                     setattr(widget, "_loading", False)
             else:
@@ -811,18 +796,15 @@ class ConfigGroupWidget(QtWidgets.QWidget):
                         setattr(widget, "_loading", True)
                         try:
                             widget.set_value(default_val)
-                            log.debug(f"Set {setting_id} to default: {default_val}")
-                            
+
                             # Save the default value to the config file
                             setting_type = widget.setting_config.get("type") if hasattr(widget, "setting_config") else None
                             self.storage.set_setting_value(self.group_id, setting_id, default_val, setting_type)
-                            log.debug(f"Saved default value for {setting_id} to config: {default_val}")
-                            
+
                             # Trigger action for default values to register environment variables
                             if hasattr(widget, "setting_config"):
                                 action_name = widget.setting_config.get("action_name")
                                 if action_name:
-                                    log.debug(f"Triggering action for default value: {action_name} = {default_val}")
                                     self._trigger_action(action_name, default_val)
                         finally:
                             setattr(widget, "_loading", False)
@@ -831,18 +813,15 @@ class ConfigGroupWidget(QtWidgets.QWidget):
                         setattr(widget, "_loading", True)
                         try:
                             widget.set_value("")
-                            log.debug(f"Set {setting_id} to empty string default")
-                            
+
                             # Save the empty string default to the config file
                             setting_type = widget.setting_config.get("type") if hasattr(widget, "setting_config") else None
                             self.storage.set_setting_value(self.group_id, setting_id, "", setting_type)
-                            log.debug(f"Saved empty string default for {setting_id} to config")
-                            
+
                             # Trigger action for empty string defaults to register environment variables
                             if hasattr(widget, "setting_config"):
                                 action_name = widget.setting_config.get("action_name")
                                 if action_name:
-                                    log.debug(f"Triggering action for empty string default: {action_name} = ''")
                                     self._trigger_action(action_name, "")
                         finally:
                             setattr(widget, "_loading", False)
@@ -869,7 +848,6 @@ class ConfigGroupWidget(QtWidgets.QWidget):
             # Get default values
             defaults = {}
             settings = self.group_config.get("settings", [])
-            log.debug(f"Restoring defaults for {len(settings)} settings")
 
             for i, setting in enumerate(settings):
                 # Use the same setting_id generation logic as in setup_ui
@@ -889,31 +867,22 @@ class ConfigGroupWidget(QtWidgets.QWidget):
                 if setting_type == "string":
                     default_val = setting.get("default_value", "")
                     defaults[setting_id] = default_val
-                    log.debug(f"Setting {setting_id} default to: {default_val}")
                 elif setting_type == "boolean":
                     default_val = setting.get("default_value", "")
                     # Convert string to boolean - "true", "1", "yes" are truthy, everything else is falsy
                     bool_val = default_val.lower() in ("true", "1", "yes", "on")
                     defaults[setting_id] = bool_val
-                    log.debug(f"Setting {setting_id} default to: {bool_val}")
                 elif setting_type == "enum":
                     default_val = setting.get("default_value", "")
                     defaults[setting_id] = default_val
-                    log.debug(f"Setting {setting_id} default to: {default_val}")
                 elif setting_type == "spinbox":
                     default_val = setting.get("default_value", "0")
                     # Convert string to integer, default to 0 if invalid
                     try:
                         int_val = int(default_val)
                         defaults[setting_id] = int_val
-                        log.debug(f"Setting {setting_id} default to: {int_val}")
                     except (ValueError, TypeError):
                         defaults[setting_id] = 0
-                        log.debug(
-                            f"Setting {setting_id} default to: 0 (invalid default)"
-                        )
-
-            log.debug(f"Restoring {len(defaults)} default values: {defaults}")
 
             # Save and apply defaults
             self.storage.reset_group_to_defaults(self.group_id, defaults)
@@ -1035,9 +1004,7 @@ class LocalConfigWindow(QtWidgets.QWidget):
 
         self.tab_widget = QtWidgets.QTabWidget()
 
-        log.debug(f"Settings structure: {self.settings}")
         groups = self.settings.get("tab_groups", [])
-        log.debug(f"Found {len(groups)} groups")
 
         for group in groups:
             if not group.get("enabled", True):
@@ -1262,7 +1229,6 @@ class LocalConfigWindow(QtWidgets.QWidget):
                             if generated_id == setting_id:
                                 action_name = setting["action_name"]
                                 if action_name:
-                                    log.debug(f"Triggering action for existing value: {action_name} = {value}")
                                     self._trigger_action(action_name, value, config)
                                 break
         except Exception as e:
@@ -1276,7 +1242,6 @@ class LocalConfigWindow(QtWidgets.QWidget):
 
     def _trigger_action(self, action_name: str, value, config=None):
         """Trigger an action when a setting value changes"""
-        log.debug(f"Triggering action: {action_name} with value: {value}")
         try:
             # Get the full project config data for the action
             if config is None:
@@ -1294,9 +1259,9 @@ class LocalConfigWindow(QtWidgets.QWidget):
                         if hasattr(tab_widget, "get_widget_values"):
                             tab_values = tab_widget.get_widget_values()
                             current_ui_values.update(tab_values)
-                except Exception as e:
-                    log.debug(f"Could not get current UI values: {e}")
-            
+                except Exception:
+                    pass
+
             # Merge saved config with current UI values (UI values take precedence)
             user_settings = project_config.get("user_settings", {}).copy()
             user_settings.update(current_ui_values)
@@ -1313,11 +1278,7 @@ class LocalConfigWindow(QtWidgets.QWidget):
 
             success = execute_action_by_name(action_name, config_data, "")
 
-            if success:
-                log.debug(
-                    f"Successfully triggered action {action_name} on value change with value: {value}"
-                )
-            else:
+            if not success:
                 log.warning(f"Failed to trigger action {action_name} on value change")
 
         except Exception as e:
@@ -1326,12 +1287,6 @@ class LocalConfigWindow(QtWidgets.QWidget):
     def _set_content_based_minimum_size(self):
         """Calculate and set minimum size based on content"""
         try:
-            # Get the current size of the window
-            current_size = self.size()
-            log.debug(
-                f"Current window size: {current_size.width()}x{current_size.height()}"
-            )
-
             # Calculate the minimum size needed for content
             min_width = 0
             min_height = 0
@@ -1353,15 +1308,11 @@ class LocalConfigWindow(QtWidgets.QWidget):
                 if hint and hint.isValid():
                     min_width = max(min_width, hint.width())
                     min_height = max(min_height, hint.height())
-                    log.debug(f"Tab {i} hint: {hint.width()}x{hint.height()}")
                 else:
                     # Fallback: use the current size of the tab
                     tab_size = tab_widget.size()
                     min_width = max(min_width, tab_size.width())
                     min_height = max(min_height, tab_size.height())
-                    log.debug(f"Tab {i} size: {tab_size.width()}x{tab_size.height()}")
-
-            log.debug(f"Content requirements: {min_width}x{min_height}")
 
             # Add padding for window chrome (title bar, borders, footer, etc.)
             # and ensure reasonable minimums
@@ -1378,22 +1329,8 @@ class LocalConfigWindow(QtWidgets.QWidget):
             optimal_height = min_height + 100  # Reduced extra space for height
 
             # Resize to optimal size if current size is significantly different
-            current_width = current_size.width()
-            current_height = current_size.height()
-
-            log.debug(f"Optimal size: {optimal_width}x{optimal_height}")
-            log.debug(
-                f"Size difference: width={abs(current_width - optimal_width)}, height={abs(current_height - optimal_height)}"
-            )
-
             # Always resize to optimal size to ensure content-based sizing
-            # This ensures the window is sized appropriately for its content
             self.resize(optimal_width, optimal_height)
-            log.debug(
-                f"Resized window to optimal content-based size: {optimal_width}x{optimal_height}"
-            )
-
-            log.debug(f"Set content-based minimum size: {min_width}x{min_height}")
 
         except Exception as e:
             log.error(f"Failed to calculate content-based minimum size: {e}")
@@ -1411,7 +1348,6 @@ class LocalConfigWindow(QtWidgets.QWidget):
     def restore_defaults(self):
         """Restore all settings to their default values"""
         try:
-            log.debug("Restoring default values...")
             self.status_bar.setText("Restoring defaults...")
 
             # Restore defaults for all groups
@@ -1421,7 +1357,6 @@ class LocalConfigWindow(QtWidgets.QWidget):
                     tab_widget._restore_defaults()
 
             self.status_bar.setText("Defaults restored")
-            log.debug("Default values restored successfully")
         except Exception as e:
             log.error(f"Failed to restore defaults: {e}")
             self.status_bar.setText("Error restoring defaults")
@@ -1501,20 +1436,10 @@ class LocalConfigWindow(QtWidgets.QWidget):
                     last_selected,
                     available_projects,
                 )
-                if selected_project:
-                    log.debug(
-                        "Using last selected project: %s",
-                        selected_project,
-                    )
             if not selected_project and current_project:
                 selected_project = current_project
-                log.debug("Using current project: %s", current_project)
             elif not selected_project and available_projects:
                 selected_project = available_projects[0]
-                log.debug(
-                    "Using first available project: %s",
-                    available_projects[0],
-                )
 
             if selected_project:
                 self.project_combo.setCurrentText(selected_project)
@@ -1539,10 +1464,6 @@ class LocalConfigWindow(QtWidgets.QWidget):
             else:
                 layout.insertWidget(insert_index, project_selector_widget)
             self._project_selector_widget = project_selector_widget
-
-            log.debug(
-                f"Created project selector with {len(available_projects)} projects"
-            )
 
         except Exception as e:
             log.error(f"Failed to create project selector: {e}")
@@ -1569,8 +1490,6 @@ class LocalConfigWindow(QtWidgets.QWidget):
 
             # Reload server schema, tabs, local values, and env actions
             self._reload_settings_for_project(accessible_name)
-
-            log.debug("Switched to project: %s", accessible_name)
 
         except Exception as e:
             log.error(f"Failed to change project: {e}")

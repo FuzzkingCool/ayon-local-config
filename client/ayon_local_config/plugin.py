@@ -1,11 +1,13 @@
 # -*- coding: utf-8 -*-
 import os
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 from ayon_core.pipeline import LauncherAction
 
 from ayon_local_config.environment_registry import get_environment_registry
 from ayon_local_config.logger import log
+
+_DISCOVERED_ACTIONS: Optional[List[type]] = None
 
 
 class LocalConfigCompatibleAction(LauncherAction):
@@ -94,11 +96,13 @@ class LocalConfigCompatibleAction(LauncherAction):
 
 def discover_localconfig_compatible_actions() -> List[LauncherAction]:
     """Dynamically discover all local config compatible actions"""
+    global _DISCOVERED_ACTIONS
+    if _DISCOVERED_ACTIONS is not None:
+        return _DISCOVERED_ACTIONS
+
     compatible_actions = []
 
     try:
-        log.debug("Starting dynamic local config action discovery...")
-
         # Get the actions directory path
         import ayon_local_config.plugins.actions
 
@@ -126,18 +130,23 @@ def discover_localconfig_compatible_actions() -> List[LauncherAction]:
                         ):
                             if _is_action_compatible_with_local_config(attr):
                                 compatible_actions.append(attr)
-                                log.debug(
-                                    f"Found local config compatible action: {attr.__name__}"
-                                )
 
                 except Exception as e:
                     log.warning(f"Failed to import action module {module_name}: {e}")
 
-        log.debug(f"Discovered {len(compatible_actions)} compatible actions")
+        action_names = ", ".join(
+            action_class.__name__ for action_class in compatible_actions
+        )
+        log.debug(
+            "Discovered %d local config action(s): %s",
+            len(compatible_actions),
+            action_names,
+        )
 
     except Exception as e:
         log.warning(f"Error discovering compatible actions: {e}")
 
+    _DISCOVERED_ACTIONS = compatible_actions
     return compatible_actions
 
 
@@ -202,9 +211,6 @@ def execute_action_by_name(
         # Use dynamic discovery system as primary method
         action_class = find_action_by_name(action_name)
         if action_class:
-            log.debug(
-                f"Found action class: {action_class.__name__}, with data: {action_data}"
-            )
             # Create instance and execute
             action_instance = action_class()
 

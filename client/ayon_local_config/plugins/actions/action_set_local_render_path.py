@@ -23,9 +23,6 @@ class SetRenderPathAction(LocalConfigCompatibleAction):
 
     def execute_with_config(self, config_data):
         """Execute the local render path management action"""
-        log.debug(
-            f"SetRenderPathAction.execute_with_config called with config_data keys: {list(config_data.keys())}"
-        )
         try:
             user_settings = config_data.get("user_settings", {})
             config_value = user_settings.get("set_default_local_render_path")
@@ -41,11 +38,6 @@ class SetRenderPathAction(LocalConfigCompatibleAction):
                 "AYON_LOCAL_RENDER_PATH",
                 local_render_path,
                 "AYON Local Render Path - automatically set by Local Config addon",
-            )
-
-            log.debug(
-                "Registered AYON_LOCAL_RENDER_PATH with registry: %s",
-                local_render_path,
             )
 
             return True

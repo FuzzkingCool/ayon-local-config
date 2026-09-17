@@ -257,3 +257,17 @@ def format_log(data, max_length=5000):
     if len(formatted) > max_length:
         return formatted[:max_length] + f"... (truncated, {len(formatted)} bytes total)"
     return formatted
+
+
+def config_summary(config: dict) -> str:
+    """One-line summary of localconfig shape for debug logging."""
+    projects = config.get("projects") or {}
+    env_vars = config.get("environment_variables") or {}
+    last_project = config.get("last_selected_project")
+    parts = [
+        f"{len(projects)} project(s)",
+        f"{len(env_vars)} env var(s)",
+    ]
+    if last_project:
+        parts.append(f"last={last_project}")
+    return ", ".join(parts)

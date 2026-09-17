@@ -4,7 +4,7 @@ import os
 import shutil
 from typing import Any, Dict, List, Optional
 
-from ayon_local_config.logger import log
+from ayon_local_config.logger import config_summary, log
 from ayon_local_config.project_context import (
     get_user_accessible_project_names,
     resolve_tray_project_name,
@@ -355,7 +355,11 @@ class LocalConfigStorage:
                         return self._initialize_default_config()
                     
                     config = json.loads(content)
-                    log.debug(f"Loaded config from: {self.config_file}")
+                    log.debug(
+                        "Loaded config from %s (%s)",
+                        self.config_file,
+                        config_summary(config),
+                    )
                     return config
             else:
                 log.debug("Config file does not exist, initializing with default structure")
@@ -388,12 +392,15 @@ class LocalConfigStorage:
             # Ensure directory exists before saving
             self._ensure_config_dir()
             
-            log.debug(f"Saving config to: {self.config_file}")
-            log.debug(f"Config data: {json.dumps(config, indent=2)}")
-            
+            log.debug(
+                "Saving config to %s (%s)",
+                self.config_file,
+                config_summary(config),
+            )
+
             with open(self.config_file, "w", encoding="utf-8") as f:
                 json.dump(config, f, indent=2, ensure_ascii=False)
-            log.debug(f"Successfully saved config to: {self.config_file}")
+            log.debug("Saved config to %s", self.config_file)
             return True
         except Exception as e:
             log.error(f"Failed to save config: {e}")
@@ -441,8 +448,6 @@ class LocalConfigStorage:
         if group_id not in config["projects"][self.project_name]:
             config["projects"][self.project_name][group_id] = {}
         config["projects"][self.project_name][group_id][setting_id] = value
-        
-        log.debug(f"Updated config structure: {json.dumps(config, indent=2)}")
         return self.save_config(config)
 
     def get_group_config(self, group_id: str) -> Dict[str, Any]:

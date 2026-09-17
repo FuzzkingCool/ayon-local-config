@@ -54,6 +54,7 @@ class LocalConfigAddon(AYONAddon, ITrayAddon):
     _resume_action = None
     _recent_menu = None
     _environment_registry = None
+    _environment_variables_restored = False
 
     def get_global_environments(self):
         """Expose the local config directory so PreLaunchHooks can find it.
@@ -88,6 +89,7 @@ class LocalConfigAddon(AYONAddon, ITrayAddon):
             if self._environment_registry:
                 try:
                     self._environment_registry.restore_environment_variables()
+                    self._environment_variables_restored = True
                     log.debug("Restored environment variables on addon initialization")
                 except Exception as e:
                     log.error(f"Failed to restore environment variables: {e}")
@@ -102,10 +104,11 @@ class LocalConfigAddon(AYONAddon, ITrayAddon):
             self.tray_icon.setToolTip(self.label)
             self.tray_icon.show()
 
-        # Restore environment variables when tray initializes
-        if self._environment_registry:
+        # Restore environment variables when tray initializes (skip if already done)
+        if self._environment_registry and not self._environment_variables_restored:
             try:
                 self._environment_registry.restore_environment_variables()
+                self._environment_variables_restored = True
                 log.debug("Restored environment variables on tray initialization")
             except Exception as e:
                 log.error(f"Failed to restore environment variables: {e}")

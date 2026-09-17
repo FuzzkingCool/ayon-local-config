@@ -34,8 +34,11 @@ class EnvironmentVariableRegistry:
             
             # Migrate from complex format to simple key-value format
             self._registered_vars = self._migrate_environment_variables(env_vars)
-            
-            log.debug(f"Loaded {len(self._registered_vars)} registered environment variables")
+
+            log.debug(
+                "Loaded %d environment variable(s) from config",
+                len(self._registered_vars),
+            )
         except Exception as e:
             log.error(f"Failed to load registered environment variables: {e}")
             self._registered_vars = {}
@@ -51,25 +54,27 @@ class EnvironmentVariableRegistry:
             Dict with simple key-value pairs
         """
         migrated_vars = {}
-        
+        migrated_count = 0
+
         for var_name, var_data in env_vars.items():
             if isinstance(var_data, dict):
                 # Complex format - extract the value
                 if 'value' in var_data:
                     migrated_vars[var_name] = var_data['value']
-                    log.debug(f"Migrated complex environment variable {var_name}")
+                    migrated_count += 1
                 else:
                     # Fallback - use the entire dict as string (shouldn't happen)
                     migrated_vars[var_name] = str(var_data)
                     log.warning(f"Unexpected environment variable format for {var_name}")
             else:
-                # Already simple format
                 migrated_vars[var_name] = var_data
-                log.debug(f"Environment variable {var_name} already in simple format")
-        
+
         # Save migrated format if we found complex data
-        if any(isinstance(var_data, dict) for var_data in env_vars.values()):
-            log.debug(f"Migrated {len(migrated_vars)} environment variables to simple format")
+        if migrated_count:
+            log.debug(
+                "Migrated %d environment variable(s) to simple format",
+                migrated_count,
+            )
             self._save_migrated_variables(migrated_vars)
         
         return migrated_vars
@@ -90,7 +95,6 @@ class EnvironmentVariableRegistry:
             config = self.storage.load_config()
             config['environment_variables'] = self._registered_vars
             self.storage.save_config(config)
-            log.debug(f"Saved {len(self._registered_vars)} registered environment variables")
         except Exception as e:
             log.error(f"Failed to save registered environment variables: {e}")
     
@@ -208,24 +212,28 @@ class EnvironmentVariableRegistry:
         This provides better integration with AYON's project loading system.
         """
         try:
-            restored_count = 0
-            
-            # Restore global environment variables
+            if not self._registered_vars:
+                log.debug("No environment variables to restore")
+                return
+
             for var_name, value in self._registered_vars.items():
                 os.environ[var_name] = value
-                restored_count += 1
-                log.debug(f"Restored global environment variable {var_name} = {value}")
-                # Verify the variable was actually set
                 actual_value = os.environ.get(var_name)
                 if actual_value != value:
                     log.warning(
-                        f"Environment variable {var_name} was set to '{value}' but "
-                        f"os.environ.get() returns '{actual_value}'"
+                        "Environment variable %s was set to %r but "
+                        "os.environ.get() returns %r",
+                        var_name,
+                        value,
+                        actual_value,
                     )
-                else:
-                    log.debug(f"Verified {var_name} = {actual_value} in os.environ")
-            
-            log.debug(f"Restored {restored_count} environment variables on addon load")
+
+            var_names = ", ".join(sorted(self._registered_vars))
+            log.debug(
+                "Restored %d environment variable(s): %s",
+                len(self._registered_vars),
+                var_names,
+            )
             
         except Exception as e:
             log.error(f"Failed to restore environment variables: {e}")

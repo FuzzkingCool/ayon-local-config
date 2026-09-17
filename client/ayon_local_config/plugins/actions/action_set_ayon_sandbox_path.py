@@ -143,9 +143,6 @@ class SetAyonSandboxPathAction(LocalConfigCompatibleAction):
 
     def execute_with_config(self, config_data):
         """Execute the sandbox path management action"""
-        log.debug(
-            f"SetAyonSandboxPathAction.execute_with_config called with config_data keys: {list(config_data.keys())}"
-        )
         try:
             # Get current and new sandbox paths
             current_sandbox = self._get_current_sandbox_path()
@@ -592,4 +589,3 @@ class SetAyonSandboxPathAction(LocalConfigCompatibleAction):
             new_sandbox_path,
             "AYON Local Sandbox Path - automatically set by Local Config addon",
         )
-        log.debug(f"Registered AYON_LOCAL_SANDBOX with registry: {new_sandbox_path}")
