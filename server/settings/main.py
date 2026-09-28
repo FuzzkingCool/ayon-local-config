@@ -22,6 +22,7 @@ DEFAULT_VALUES = {
                     "enum_options": [],
                     "action_name": "",
                     "action_data": "",
+                    "spinbox_range": "",
                     "divider_orientation": "horizontal",
                     "type": "divider",
                     "label": "AYON Local Paths Configuration",
@@ -34,27 +35,25 @@ DEFAULT_VALUES = {
                     "enum_options": [],
                     "action_name": "SetAyonSandboxPathAction",
                     "action_data": "",
+                    "spinbox_range": "",
                     "divider_orientation": "horizontal",
                     "type": "string",
                     "label": "AYON Sandbox folder",
                 },
-            
                 {
-                    "tooltip": (
-                        "Local render output folder. Leave empty to use your OS "
-                        "Pictures folder plus Renders (resolved at launch)."
-                    ),
-                    "default_value": "",
+                    "tooltip": "",
+                    "default_value": "~/Pictures/Renders",
                     "is_path": True,
                     "path_type": "folder",
                     "enum_options": [],
                     "action_name": "SetRenderPathAction",
                     "action_data": "",
+                    "spinbox_range": "",
                     "divider_orientation": "horizontal",
                     "type": "string",
                     "label": "Set Default Local Render Path",
                 },
-                 {
+                {
                     "tooltip": "Path to your Unity project directory (The root folder of your Unity project, not the Assets folder)",
                     "default_value": "",
                     "is_path": True,
@@ -62,6 +61,7 @@ DEFAULT_VALUES = {
                     "enum_options": [],
                     "action_name": "SetUnityProjectAction",
                     "action_data": "",
+                    "spinbox_range": "",
                     "divider_orientation": "horizontal",
                     "type": "string",
                     "label": "Unity Project Path",
@@ -74,6 +74,7 @@ DEFAULT_VALUES = {
                     "enum_options": [],
                     "action_name": "SetUnityProjectAction",
                     "action_data": "",
+                    "spinbox_range": "",
                     "divider_orientation": "horizontal",
                     "type": "boolean",
                     "label": "Auto Open Unity Project",
@@ -86,21 +87,10 @@ DEFAULT_VALUES = {
                     "enum_options": [],
                     "action_name": "",
                     "action_data": "",
+                    "spinbox_range": "",
                     "divider_orientation": "horizontal",
                     "type": "divider",
                     "label": "Actions",
-                },
-                {
-                    "tooltip": "Clean all AYON log files",
-                    "default_value": "",
-                    "is_path": False,
-                    "path_type": "folder",
-                    "enum_options": [],
-                    "action_name": "CleanLogsAction",
-                    "action_data": "",
-                    "divider_orientation": "horizontal",
-                    "type": "button",
-                    "label": "Clean All Logs",
                 },
                 {
                     "tooltip": "Open AYON Sandbox Folder in your OS file explorer",
@@ -110,9 +100,45 @@ DEFAULT_VALUES = {
                     "enum_options": [],
                     "action_name": "OpenFolderAction",
                     "action_data": "${AYON_LOCAL_SANDBOX}",
+                    "spinbox_range": "",
                     "divider_orientation": "horizontal",
                     "type": "button",
                     "label": "Open Sandbox Folder",
+                },
+                {
+                    "tooltip": (
+                        "Resets only QArgparse option dialog window positions "
+                        "(legacy action option popups). Does not reset Launcher, "
+                        "Publisher, Loader, or other tool windows."
+                    ),
+                    "default_value": "",
+                    "is_path": False,
+                    "path_type": "folder",
+                    "enum_options": [],
+                    "action_name": "ResetWindowPositionsAction",
+                    "action_data": "",
+                    "spinbox_range": "",
+                    "divider_orientation": "horizontal",
+                    "type": "button",
+                    "label": "Reset UI (Default Window Positions)",
+                },
+                {
+                    "tooltip": (
+                        "Clears all saved Qt UI state for AYON and MDHR pipeline "
+                        "tools (window positions, splitter layouts, loader view "
+                        "mode, color swatches, Harmony tool dialogs). Restart open "
+                        "tools after resetting."
+                    ),
+                    "default_value": "",
+                    "is_path": False,
+                    "path_type": "folder",
+                    "enum_options": [],
+                    "action_name": "ResetQtSettingsAction",
+                    "action_data": "",
+                    "spinbox_range": "",
+                    "divider_orientation": "horizontal",
+                    "type": "button",
+                    "label": "Reset UI (ALL)",
                 },
             ],
         },
