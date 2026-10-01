@@ -196,7 +196,11 @@ class LocalConfigAddon(AYONAddon, ITrayAddon):
         tray_menu.addSeparator()
 
         menu_item_name = self.settings.get("menu_item_name", "User Config")
-        self._action = QtWidgets.QAction(menu_item_name, tray_menu)
+        self._action = create_tray_icon_action(tray_menu, menu_item_name)
+        apply_tray_menu_icon(
+            self._action,
+            get_qta_icon_by_name_and_color("user", AYON_COLOR),
+        )
         self._action.triggered.connect(self.show_config_window)
         tray_menu.addAction(self._action)
 
